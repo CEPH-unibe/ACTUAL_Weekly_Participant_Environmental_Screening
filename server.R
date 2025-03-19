@@ -12,3 +12,5 @@ server <- function(input, output) {
          main = 'Histogram of waiting times')
   })
 }
+
+sakdvjshvds
