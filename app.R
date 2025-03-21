@@ -8,18 +8,28 @@ rm(list=ls())
 
 
 # libraries
-library(shiny);library(readr);library(tidyr);library(dplyr);library(readxl);library(lubridate)
+library(shiny);library(readr);library(tidyr);library(dplyr);library(readxl)
+library(lubridate);library(stringr);library(ggplot2)
 
 
-# load recap data locally
-redcap = read.csv("../data/redcap_data.csv") |>
-  group_by(uid) |>
-  summmarise(pvl_start)
+# load cleaned recap data locally
+redcap = read_csv("../data/redcap_data.csv") |>
+  dplyr::mutate(starttime = ymd_hms(starttime),
+                endtime   = ymd_hms(endtime),
+                redcap_event_name = substr(redcap_event_name, 13,18))
 
+  
+# function to find the common prefix of file paths
+common_prefix <- function(strings) {
+  prefix <- strings[1]
+  for (str in strings[-1]) {
+    while (!startsWith(str, prefix)) {
+      prefix <- substr(prefix, 1, nchar(prefix) - 1)
+    }
+  }
+  return(prefix)
+}
 
-data <- redcap |>
-  group_by(uid) |>
-  summarize(pvl_start = min(pvl_end, na.rm = TRUE))
 
 # load user interface and server
 ui     <- source("ui.R")
@@ -41,7 +51,9 @@ shinyApp(ui = ui, server = server)
 
 # in redcap: the field workers record the "Participant Visit Log"
 # the start variable "pvl_start" indicates the end of an observation period
+# -> we need the minimum pvl_end as a start cut of the data
 # the end variable "pvl_end" indicates the start of an observation period
+# -> we need the maximum pvl_start as an end time
 
 # the redcap_event name indicated in which week the participant observed
 # study_visit_week_1_arm_1
@@ -50,7 +62,7 @@ shinyApp(ui = ui, server = server)
 
 # server 
 # from the selected time period you get a list of the persons that were observed
-# and how many (specific) files were in their folder for this week (problem == which week)
+# and how many (specific) files were in their folder for this week 
 # perfect would be a drop down menu of the files so that you can read the files
 
 # plot the data of all (relevant) files
@@ -60,14 +72,3 @@ shinyApp(ui = ui, server = server)
 # save maybe the meta data of each file for plotting
 # keep some info about the device used for the data
 
-
-# figure out the pathing system to synology drive
-library(dplyr);library(readxl);library(lubridate)
-
-campus_id <- "ts24n298"
-filepath = paste0("/User/", campus_id, "SynologyDive/Participants/ACT001D/week1/ACT001D_IBH01_HUM_WK1.xlsx")
-
-filepath <- "~/SynologyDrive/Participants/ACT001D/week1/ACT001D_IBH01_HUM_WK1.xlsx"
-
-person <- read_excel(filepath, skip = 24) |> 
-  mutate(datetime = ymd_hms(paste(Date, Time)))
