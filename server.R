@@ -193,6 +193,12 @@ server <- function(input, output, session) {
     # colors for plotting
     cols = c("skyblue2", "brown1", "brown1","skyblue2", "brown1")
     
+    # yaxis lims
+    ytempmax = max(all_data[[5]]$Value, na.rm = TRUE) + 2
+    ytempmin = min(all_data[[5]]$Value, na.rm = TRUE) - 2
+    
+    y1 <- rep(c(0, ytempmin, ytempmin, 0, ytempmin), length.out = length(all_data))
+    y2 <- rep(c(100, ytempmax, ytempmax, 100, ytempmax), length.out = length(all_data))
     
     
     # render individual plots for each dataset
@@ -207,9 +213,10 @@ server <- function(input, output, session) {
         
         # customize plot
         ggplot(plot_data, aes(x = datetime, y = Value)) +
-          geom_line(color = cols[i], size = 1.2) +
+          geom_line(color = cols[i], linewidth = 1.1) +
           labs(title = title, x = "time", y = "") +
           scale_x_datetime(date_labels = "%b %d", date_breaks = "24 hour") +
+          scale_y_continuous(limits = c(y1[i], y2[i])) + 
           theme_minimal()
       })
     })
