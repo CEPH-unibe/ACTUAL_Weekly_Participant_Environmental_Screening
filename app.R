@@ -19,36 +19,19 @@ redcap = read_csv("../data/redcap_data.csv") |>
                 redcap_event_name = substr(redcap_event_name, 13,18))
 
   
-# function to find the common prefix of file paths
-common_prefix <- function(strings) {
-  prefix <- strings[1]
-  for (str in strings[-1]) {
-    while (!startsWith(str, prefix)) {
-      prefix <- substr(prefix, 1, nchar(prefix) - 1)
-    }
-  }
-  return(prefix)
-}
-
+# functions
+source("functions.R")
 
 # load user interface and server
-ui     <- source("ui.R")
-server <- source("server.R")
+ui  <- source("ui.R")
+se  <- source("server.R")
 
 
 # run the app
 shinyApp(ui = ui, server = server)
 
 
-
-
-
-# THE PLAN FOR THE APP
-
-# UI
-# you can first select the week through an interactive calendar
-# and you can select if you want plots of the data (cut to the start and end time)
-
+# Notes:
 # in redcap: the field workers record the "Participant Visit Log"
 # the start variable "pvl_start" indicates the end of an observation period
 # -> we need the minimum pvl_end as a start cut of the data
@@ -56,19 +39,8 @@ shinyApp(ui = ui, server = server)
 # -> we need the maximum pvl_start as an end time
 
 # the redcap_event name indicated in which week the participant observed
-# study_visit_week_1_arm_1
+# study_visit_week_1_arm_1 = week1
 
 
 
-# server 
-# from the selected time period you get a list of the persons that were observed
-# and how many (specific) files were in their folder for this week 
-# perfect would be a drop down menu of the files so that you can read the files
-
-# plot the data of all (relevant) files
-
-
-# NOTE
-# save maybe the meta data of each file for plotting
-# keep some info about the device used for the data
 
