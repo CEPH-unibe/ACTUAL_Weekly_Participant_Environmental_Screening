@@ -4,6 +4,7 @@
 
 # the purpose of this file:
 # avoid repeatedly loading the redcap data through API
+# select only necessary columns and get needed start and end times 
 # save the data locally in the folder above of the Git repository so that it is
 # not uploaded
 # rerun this file if you want to update the redcap data
@@ -45,6 +46,27 @@ if (http_status(response)$category == "Success") {
   print("Error in API request:")
   print(content(response, "text"))
 }
+
+# select necessary columns and convert to datetime
+# return min pvl_end as a start time of the observation week
+# return max pvl_start as a end time of the observation week
+data <- data |>
+  
+  filter(str_detect(redcap_event_name, "study_visit_week")) |>
+  
+  select(uid,
+         redcap_event_name,
+         pvl_start,
+         pvl_end) |>
+  
+  mutate(pvl_start = ymd_hm(pvl_start),
+         pvl_end   = ymd_hm(pvl_end)) |>
+  
+  group_by(uid, redcap_event_name) |>
+  
+  summarise(starttime = min(pvl_end, na.rm = TRUE),
+            endtime   = max(pvl_start, na.rm = TRUE),
+            .groups   = "drop")
 
 # Save dataset
 write.csv(data, "../data/redcap_data.csv", row.names = FALSE)
