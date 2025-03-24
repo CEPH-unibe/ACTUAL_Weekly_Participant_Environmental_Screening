@@ -10,7 +10,7 @@ rm(list=ls())
 # libraries
 library(shiny);library(readr);library(tidyr);library(dplyr);library(readxl)
 library(lubridate);library(stringr);library(ggplot2)
-
+library(pdftools)
 
 # load cleaned recap data locally
 redcap = read_csv("../data/redcap_data.csv") |>

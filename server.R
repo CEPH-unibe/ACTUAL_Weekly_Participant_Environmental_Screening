@@ -6,10 +6,10 @@ server <- function(input, output, session) {
     
     req(input$date_range)  # get range
     
-    data_filtered <- redcap %>%
+    data_filtered <- redcap |>
       filter(as.Date(starttime) >= input$date_range[1] &        # filter by range
-               as.Date(starttime) <= input$date_range[2]) %>%
-      mutate(starttime = format(starttime, "%Y-%m-%d %H:%M:%S"),
+               as.Date(starttime) <= input$date_range[2]) |>
+      dplyr::mutate(starttime = format(starttime, "%Y-%m-%d %H:%M:%S"),
              endtime = format(endtime, "%Y-%m-%d %H:%M:%S")) 
     
     # give all uid with starttime within the range for selection for plots
@@ -102,11 +102,11 @@ server <- function(input, output, session) {
       req(input$uid_select) 
       req(input$date_range)
       
-      participant_data <- redcap %>%
+      participant_data <- redcap |>
         filter(as.Date(starttime) >= input$date_range[1] & 
-                 as.Date(starttime) <= input$date_range[2]) %>%
+                 as.Date(starttime) <= input$date_range[2]) |>
         filter(uid == input$uid_select) |>
-        mutate(starttime = format(starttime, "%Y-%m-%d %H:%M:%S"),
+        dplyr::mutate(starttime = format(starttime, "%Y-%m-%d %H:%M:%S"),
                endtime = format(endtime, "%Y-%m-%d %H:%M:%S")) 
       
       return(participant_data)
@@ -134,9 +134,9 @@ server <- function(input, output, session) {
       header_row <- which(person[, 1] == "Date" & person[, 2] == "Time")
       
       # read the file again, skipping all rows before the header_row and delete NAs
-      person <- read_excel(filepath, skip = header_row) %>%
-        na.omit() %>%
-        mutate(datetime = ymd_hms(paste(Date, Time)),
+      person <- read_excel(filepath, skip = header_row) |>
+        na.omit() |>
+        dplyr::mutate(datetime = ymd_hms(paste(Date, Time)),
                Value = as.numeric(Value)) 
       
       # ensure `participant()` has data before filtering
@@ -147,7 +147,7 @@ server <- function(input, output, session) {
       end_time <- as.POSIXct(participant()$endtime[1], format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
       
       # Filter environmental data based on `participant()` start & end times
-      person <- person %>%
+      person <- person |>
         filter(datetime >= start_time & datetime <= end_time)
       
       return(person)
@@ -171,8 +171,8 @@ server <- function(input, output, session) {
       
       person <- person |>
         select(datetime, LEQ_dB_A) |>
-        na.omit() %>%
-        mutate(datetime = ymd_hms(datetime),
+        na.omit() |>
+        dplyr::mutate(datetime = ymd_hms(datetime),
                Value = as.numeric(LEQ_dB_A)) |>
         select(-LEQ_dB_A)
     
@@ -185,7 +185,7 @@ server <- function(input, output, session) {
     end_time <- as.POSIXct(participant()$endtime[1], format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
     
     # Filter noise data based on participant() start & end times
-    person <- person %>%
+    person <- person |>
       filter(datetime >= start_time & datetime <= end_time)
     
       return(person)
@@ -268,7 +268,122 @@ server <- function(input, output, session) {
       })
     })
   })
-}
   
-
-
+  
+  
+  
+  
+  
+  output$download_pdf <- downloadHandler(
+    filename = function() {
+      paste0("Weekly_Report_", Sys.Date(), ".pdf")
+    },
+    
+    content = function(file) {
+      pdf(file)
+      
+      # Define participant data *before* the loop, without `reactive()`
+      participant_data <- redcap |>
+        filter(as.Date(starttime) >= input$date_range[1] &
+                 as.Date(starttime) <= input$date_range[2]) |>
+        mutate(starttime = format(starttime, "%Y-%m-%d %H:%M:%S"),
+               endtime = format(endtime, "%Y-%m-%d %H:%M:%S"))
+      
+      tryCatch({
+        
+        # Loop through all unique UIDs to generate individual PDFs
+        unique_uids <- unique(filtered_data()$uid)
+        
+        for (uid in unique_uids) {
+          print(paste("Processing UID:", uid))
+          
+          # Filter data for this UID
+          filtered_data_selected <- filtered_data() |> filter(uid == uid)
+          redcap_event <- filtered_data_selected |> pull(redcap_event_name)
+          
+          # Construct file path
+          file_path <- paste0("~/SynologyDrive/Participants/", uid, "/",
+                              gsub("_", "", redcap_event), "/")
+          
+          # List only .xlsx files (Environmental Data)
+          files_in_folder_xlsx <- list.files(file_path, pattern = "\\.xlsx$", full.names = TRUE)
+          files_in_folder_xlsx <- files_in_folder_xlsx[!grepl("^~\\$", basename(files_in_folder_xlsx))]
+          
+          # List only .xls files (Noise Data)
+          files_in_folder_xls <- list.files(file_path, pattern = "\\.xls$", full.names = TRUE)
+          files_in_folder_xls <- files_in_folder_xls[!grepl("^~\\$", basename(files_in_folder_xls))]
+          
+          # Filter participant data *inside the loop*, without using `reactive()`
+          participant <- participant_data |> filter(uid == uid)
+          
+          # Loop through Environmental Files
+          if (length(files_in_folder_xlsx) > 0) {
+            for (i in files_in_folder_xlsx) {
+              person <- read_excel(i)
+              
+              # Locate header row
+              header_row <- which(person[, 1] == "Date" & person[, 2] == "Time")
+              
+              # Read file with correct header row
+              person <- read_excel(i, skip = header_row) |> 
+                na.omit() |> 
+                mutate(datetime = ymd_hms(paste(Date, Time)),
+                       Value = as.numeric(Value))
+              
+              # Get start_time and end_time from participant
+              start_time <- as.POSIXct(participant$starttime[1], format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
+              end_time <- as.POSIXct(participant$endtime[1], format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
+              
+              # Filter data based on time range
+              person <- person |> filter(datetime >= start_time & datetime <= end_time)
+              
+              # Generate environmental plot
+              plot1 <- ggplot(person, aes(x = datetime, y = Value)) +
+                geom_line(linewidth = 1.1) +
+                labs(title = paste("Environmental Data for", basename(i)), x = "Time", y = "Value") +
+                scale_x_datetime(date_labels = "%b %d", date_breaks = "24 hour") +
+                theme_minimal()
+              
+              print(plot1)  # Ensure ggplot gets printed to the PDF
+            }
+          }
+          
+          # Noise Data Plotting
+          if (length(files_in_folder_xls) > 0) {
+            for (file_to_read in files_in_folder_xls) {  # Use `for` loop here for clarity, even if we just take the first file
+              person <- read.delim(file_to_read, skip = 2, header = TRUE)
+              colnames(person) <- c("datetime", "LEQ_dB_A")
+              
+              person <- person |> 
+                select(datetime, LEQ_dB_A) |> 
+                na.omit() |> 
+                mutate(datetime = ymd_hms(datetime),
+                       Value = as.numeric(LEQ_dB_A)) |> 
+                select(-LEQ_dB_A)
+              
+              start_time <- as.POSIXct(participant$starttime[1], format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
+              end_time <- as.POSIXct(participant$endtime[1], format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
+              
+              # Filter noise data
+              person <- person |> filter(datetime >= start_time & datetime <= end_time)
+              
+              # Generate noise plot
+              plot2 <- ggplot(person, aes(x = datetime, y = Value)) +
+                geom_line(linewidth = 1.1) +
+                labs(title = paste("Noise Data for", basename(file_to_read)), x = "Time", y = "Value") +
+                scale_x_datetime(date_labels = "%b %d", date_breaks = "24 hour") +
+                theme_minimal()
+              
+              print(plot2)  # Ensure ggplot gets printed to the PDF
+            }
+          }
+        }
+        
+      }, error = function(e) {
+        message("Error while generating plots:", e$message)
+      }, finally = {
+        dev.off()  # Always close the PDF device
+      })
+    }
+  )
+}
