@@ -20,7 +20,6 @@ server <- function(input, output, session) {
   })
   
   
-  
   # show the filtered data
   output$filtered_data <- renderTable({
     filtered_data() 
@@ -83,14 +82,19 @@ server <- function(input, output, session) {
       })
     
     
-    
-    
-    # for plotting list only .xlsx files
+    # for plotting list only .xlsx files ENVIRONMENTAL FILES
     files_in_folder_xlsx <- list.files(file_path, pattern = "\\.xlsx$", full.names = TRUE)
     # explicitly remove any files starting with ~$ (temporary excel files)
     files_in_folder_xlsx <- files_in_folder_xlsx[!grepl("^~\\$", basename(files_in_folder_xlsx))]
     
+    # for plotting list only .xls files NOISE FILE
+    files_in_folder_xls <- list.files(file_path, pattern = "\\.xls$", full.names = TRUE)
+    # explicitly remove any files starting with ~$ (temporary excel files)
+    files_in_folder_xls <- files_in_folder_xls[!grepl("^~\\$", basename(files_in_folder_xls))]
     
+    
+    
+
     
     # get starttime and endtime from redcap for the selected ui-event-pair
     participant <- reactive({
@@ -98,14 +102,14 @@ server <- function(input, output, session) {
       req(input$uid_select) 
       req(input$date_range)
       
-      participant <- redcap %>%
+      participant_data <- redcap %>%
         filter(as.Date(starttime) >= input$date_range[1] & 
                  as.Date(starttime) <= input$date_range[2]) %>%
         filter(uid == input$uid_select) |>
         mutate(starttime = format(starttime, "%Y-%m-%d %H:%M:%S"),
                endtime = format(endtime, "%Y-%m-%d %H:%M:%S")) 
       
-      return(participant)
+      return(participant_data)
     })
     
     
@@ -121,7 +125,7 @@ server <- function(input, output, session) {
     
     
     # load all datasets from .xlsx files and create individual plots
-    all_data <- lapply(files_in_folder_xlsx, function(filepath) {
+    all_data_xlsx <- lapply(files_in_folder_xlsx, function(filepath) {
       
       # Read the Excel file
       person <- read_excel(filepath)
@@ -149,6 +153,49 @@ server <- function(input, output, session) {
       return(person)
     })
     
+    
+    
+    
+    # Load all datasets from .xls files (noise)
+    all_data_xls <- lapply(files_in_folder_xls, function(filepath) {
+      
+      # Ensure you are using an actual file from the directory
+      if (length(files_in_folder_xls) > 0) {
+        file_to_read <- files_in_folder_xls  # Pick the first .csv file
+        person <- read.delim(file_to_read, skip = 2, header = TRUE)
+      } else {
+        stop("No .csv files found in the directory.")
+      }
+      
+      colnames(person) <- c("datetime", "LEQ_dB_A")
+      
+      person <- person |>
+        select(datetime, LEQ_dB_A) |>
+        na.omit() %>%
+        mutate(datetime = ymd_hms(datetime),
+               Value = as.numeric(LEQ_dB_A)) |>
+        select(-LEQ_dB_A)
+    
+    
+    # Ensure `participant()` has data before filtering
+    req(nrow(participant()) > 0)
+    
+    # Extract start and end times
+    start_time <- as.POSIXct(participant()$starttime[1], format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
+    end_time <- as.POSIXct(participant()$endtime[1], format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
+    
+    # Filter noise data based on participant() start & end times
+    person <- person %>%
+      filter(datetime >= start_time & datetime <= end_time)
+    
+      return(person)
+    })
+    
+    
+    
+    
+    # Combine environmental and noise data
+    all_data <- c(all_data_xlsx, all_data_xls)
     
     
     # remove any NULL elements (files that couldn't be read)
@@ -188,17 +235,17 @@ server <- function(input, output, session) {
     # for title of plots: find the common prefix in the xlxs file paths
     common_prefix_path_xlxs <- common_prefix(files_in_folder_xlsx)
     # remove the common prefix from each file path to get filenames
-    files_in_folder_xlxs_unique <- sub(common_prefix_path, "", files_in_folder_xlsx)
+    files_in_folder_xlxs_unique <- c(sub(common_prefix_path, "", files_in_folder_xlsx), sub(common_prefix_path, "", files_in_folder_xls))
     
     # colors for plotting
-    cols = c("skyblue2", "brown1", "brown1","skyblue2", "brown1")
+    cols = c("skyblue2", "brown1", "brown1","skyblue2", "brown1", "grey1")
     
     # yaxis lims
     ytempmax = max(all_data[[5]]$Value, na.rm = TRUE) + 2
     ytempmin = min(all_data[[5]]$Value, na.rm = TRUE) - 2
     
-    y1 <- rep(c(0, ytempmin, ytempmin, 0, ytempmin), length.out = length(all_data))
-    y2 <- rep(c(100, ytempmax, ytempmax, 100, ytempmax), length.out = length(all_data))
+    y1 <- rep(c(0, ytempmin, ytempmin, 0, ytempmin, 30), length.out = length(all_data))
+    y2 <- rep(c(100, ytempmax, ytempmax, 100, ytempmax, 100), length.out = length(all_data))
     
     
     # render individual plots for each dataset
@@ -222,4 +269,6 @@ server <- function(input, output, session) {
     })
   })
 }
+  
+
 
