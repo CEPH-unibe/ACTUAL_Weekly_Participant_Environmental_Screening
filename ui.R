@@ -11,9 +11,11 @@ ui <- fluidPage(
       #  date range input
       dateRangeInput("date_range", 
                      label = "Select a time period:", 
+                     # start = "2025-01-12 00:00:00",  # fixed dates for testing
+                     # end = "2025-01-19 23:59:59"), # 
                      start = Sys.time() - 7*24*60*60,  # Default start date
                      end = Sys.time()), # Default end date
-      
+
       # dropdown for selecting UID
       selectInput("uid_select", 
                   "Select Participant for Plotting:", 

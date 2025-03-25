@@ -276,11 +276,27 @@ server <- function(input, output, session) {
   
   output$download_pdf <- downloadHandler(
     filename = function() {
-      paste0("Weekly_Report_", Sys.Date(), ".pdf")
+      
+      # specify where the report will be saved
+      # wd = getwd()
+      paste0("../reports/Weekly_Report_from_",input$date_range[1],"_to_",input$date_range[2] , ".pdf")
     },
     
     content = function(file) {
-      pdf(file)
+      
+      report_path <- paste0("../reports/Weekly_Report_from_",input$date_range[1],"_to_",input$date_range[2] , ".pdf")
+      
+      pdf(report_path, width = 8, height = 2.3) 
+      
+      grid.text(paste0("Weekly Report from ",input$date_range[1]," to ",input$date_range[2] ), x = 0.5, y = 0.9, gp = gpar(fontsize = 18, fontface = "bold"))
+      
+      grid.newpage() 
+      
+      filtered_table <- tableGrob(head(filtered_data(), 10))
+      grid.draw(filtered_table)
+      
+      plot_list <- list()  
+      plot_counter <- 1 
       
       # Define participant data *before* the loop, without `reactive()`
       participant_data <- redcap |>
@@ -288,14 +304,12 @@ server <- function(input, output, session) {
                  as.Date(starttime) <= input$date_range[2]) |>
         mutate(starttime = format(starttime, "%Y-%m-%d %H:%M:%S"),
                endtime = format(endtime, "%Y-%m-%d %H:%M:%S"))
-      
-      tryCatch({
+
         
         # Loop through all unique UIDs to generate individual PDFs
         unique_uids <- unique(filtered_data()$uid)
         
         for (uid in unique_uids) {
-          print(paste("Processing UID:", uid))
           
           # Filter data for this UID
           filtered_data_selected <- filtered_data() |> filter(uid == uid)
@@ -307,11 +321,12 @@ server <- function(input, output, session) {
           
           # List only .xlsx files (Environmental Data)
           files_in_folder_xlsx <- list.files(file_path, pattern = "\\.xlsx$", full.names = TRUE)
-          files_in_folder_xlsx <- files_in_folder_xlsx[!grepl("^~\\$", basename(files_in_folder_xlsx))]
+          files_in_folder_xlsx <- unique(files_in_folder_xlsx[!grepl("^~\\$", basename(files_in_folder_xlsx))])
           
           # List only .xls files (Noise Data)
           files_in_folder_xls <- list.files(file_path, pattern = "\\.xls$", full.names = TRUE)
-          files_in_folder_xls <- files_in_folder_xls[!grepl("^~\\$", basename(files_in_folder_xls))]
+          files_in_folder_xls <- unique(files_in_folder_xls[!grepl("^~\\$", basename(files_in_folder_xls))])
+         
           
           # Filter participant data *inside the loop*, without using `reactive()`
           participant <- participant_data |> filter(uid == uid)
@@ -319,6 +334,7 @@ server <- function(input, output, session) {
           # Loop through Environmental Files
           if (length(files_in_folder_xlsx) > 0) {
             for (i in files_in_folder_xlsx) {
+              
               person <- read_excel(i)
               
               # Locate header row
@@ -337,20 +353,32 @@ server <- function(input, output, session) {
               # Filter data based on time range
               person <- person |> filter(datetime >= start_time & datetime <= end_time)
               
+              # set color
+              if(grepl("HUM", i)){
+                color = "skyblue2"; y1 = 0; y2 = 100
+                
+              } else{
+                color = "brown2"; y1 = 15; y2 = 50
+            }
+              
               # Generate environmental plot
               plot1 <- ggplot(person, aes(x = datetime, y = Value)) +
-                geom_line(linewidth = 1.1) +
-                labs(title = paste("Environmental Data for", basename(i)), x = "Time", y = "Value") +
+                geom_line(linewidth = 1.1, color = color) +
+                labs(title = basename(i), x = "Time", y = "Value") +
                 scale_x_datetime(date_labels = "%b %d", date_breaks = "24 hour") +
+                scale_y_continuous(limits = c(y1,y2)) +
                 theme_minimal()
               
-              print(plot1)  # Ensure ggplot gets printed to the PDF
+              # print(plot1)  # Ensure ggplot gets printed to the PDF
+              plot_list[[plot_counter]] <- plot1
+              plot_counter <- plot_counter + 1
             }
           }
           
           # Noise Data Plotting
           if (length(files_in_folder_xls) > 0) {
             for (file_to_read in files_in_folder_xls) {  # Use `for` loop here for clarity, even if we just take the first file
+            
               person <- read.delim(file_to_read, skip = 2, header = TRUE)
               colnames(person) <- c("datetime", "LEQ_dB_A")
               
@@ -369,21 +397,29 @@ server <- function(input, output, session) {
               
               # Generate noise plot
               plot2 <- ggplot(person, aes(x = datetime, y = Value)) +
-                geom_line(linewidth = 1.1) +
-                labs(title = paste("Noise Data for", basename(file_to_read)), x = "Time", y = "Value") +
+                geom_line(linewidth = 0.6, color = "#646464") +
+                labs(title = basename(file_to_read), x = "Time", y = "Value") +
                 scale_x_datetime(date_labels = "%b %d", date_breaks = "24 hour") +
+                scale_y_continuous(limits = c(30,90)) +
                 theme_minimal()
-              
-              print(plot2)  # Ensure ggplot gets printed to the PDF
+            
+              plot_list[[plot_counter]] <- plot2
+              plot_counter <- plot_counter + 1
             }
           }
         }
         
-      }, error = function(e) {
-        message("Error while generating plots:", e$message)
-      }, finally = {
-        dev.off()  # Always close the PDF device
-      })
+        for (n in 1:length(plot_list)) {
+          
+          if(n == 1 | (n-1) %% 6 == 0){
+            grid.newpage()
+            grid.text(substr(ggplot_build(plot_list[[n]])$plot$labels$title, 1, 7), x = 0.5, y = 0.5, gp = gpar(fontsize = 14, fontface = "bold"))
+          }
+          
+          print(plot_list[[n]])
+        }
+        
+        dev.off() 
     }
   )
 }
