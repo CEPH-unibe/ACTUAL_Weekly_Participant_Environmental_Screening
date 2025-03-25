@@ -9,3 +9,9 @@ Author: Tino Schneidewind
 2. Which files are available per person?
 3. What were the exposures of each person of the week?
 4. Create a pdf-file for every time period that enables me to check what data is missing and if there are some major irregularities.
+
+
+### Preparing this App locally
+1. You need to save this repository within another folder because we cannot upload the data and report to GitHub
+2. in this master folder, create a data and reports folder
+3. run the getREDCap with the TOKEN to get the data, you need to refresh this data from time to time. Dont push the Token to GitHub!
