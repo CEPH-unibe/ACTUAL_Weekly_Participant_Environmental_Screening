@@ -9,8 +9,8 @@ rm(list=ls())
 
 # libraries
 library(shiny);library(readr);library(tidyr);library(dplyr);library(readxl)
-library(lubridate);library(stringr);library(ggplot2)
-library(pdftools)
+library(lubridate);library(stringr);library(ggplot2);library(pdftools)
+library(gridExtra); library(grid)
 
 # load cleaned recap data locally
 redcap = read_csv("../data/redcap_data.csv") |>
@@ -23,8 +23,8 @@ redcap = read_csv("../data/redcap_data.csv") |>
 source("functions.R")
 
 # load user interface and server
-ui  <- source("ui.R")
-se  <- source("server.R")
+source("ui.R")
+source("server.R")
 
 
 # run the app
