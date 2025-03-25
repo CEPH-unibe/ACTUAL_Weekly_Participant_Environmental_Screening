@@ -12,6 +12,6 @@ Author: Tino Schneidewind
 
 
 ### Preparing this App locally
-1. You need to save this repository within another folder because we cannot upload the data and report to GitHub
+1. You need to save this repository within another folder because we cannot upload the data and reports to GitHub
 2. in this master folder, create a data and reports folder
-3. run the getREDCap with the TOKEN to get the data, you need to refresh this data from time to time. Dont push the Token to GitHub!
+3. run the getREDCap.R file with the TOKEN to get the data, you need to refresh this data from time to time. Dont push the Token to GitHub!
