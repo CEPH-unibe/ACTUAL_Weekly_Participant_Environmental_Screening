@@ -284,7 +284,7 @@ server <- function(input, output, session) {
     
     content = function(file) {
       
-      report_path <- paste0("../reports/Weekly_Report_from_",input$date_range[1],"_to_",input$date_range[2] , ".pdf")
+      report_path <- paste0("./reports/Weekly_Report_from_",input$date_range[1],"_to_",input$date_range[2] , ".pdf")
       
       pdf(report_path, width = 8, height = 2.3) 
       
