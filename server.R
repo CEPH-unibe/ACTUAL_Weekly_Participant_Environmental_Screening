@@ -7,6 +7,8 @@ server <- function(input, output, session) {
     req(input$date_range)  # get range
     
     data_filtered <- redcap |>
+      select(-setup, -takedown, -n_days,
+             -starts_with("v0"))|>
       filter(as.Date(starttime) >= input$date_range[1] &        # filter by range
                as.Date(starttime) <= input$date_range[2]) |>
       dplyr::mutate(starttime = format(starttime, "%Y-%m-%d %H:%M:%S"),
@@ -20,9 +22,29 @@ server <- function(input, output, session) {
   })
   
   
+  # filter the redcap data for starttimes within the selected date range
+  visit_data <- reactive({
+    
+    req(input$date_range)  # get range
+    
+    data_visit <- redcap |>
+            filter(as.Date(starttime) >= input$date_range[1] &        # filter by range
+               as.Date(starttime) <= input$date_range[2]) |>
+            select(uid, setup, starts_with("v0"), takedown, n_days) |>
+      mutate(across(c(setup, starts_with("v0"), takedown), as.Date))
+  
+    return(data_visit)
+  })
+  
   # show the filtered data
   output$filtered_data <- renderTable({
     filtered_data() 
+  }, rownames = TRUE)
+  
+  # show the filtered data
+  output$visit_table <- renderTable({
+    visit_data() |> 
+      mutate(across(c(setup, starts_with("v0"), takedown), ~ format(., "%Y-%m-%d")))
   }, rownames = TRUE)
   
   
@@ -294,6 +316,11 @@ server <- function(input, output, session) {
       
       filtered_table <- tableGrob(head(filtered_data(), 10))
       grid.draw(filtered_table)
+      
+      grid.newpage() 
+      
+      visit_table <- tableGrob(head(visit_data(), 10))
+      grid.draw(visit_table)
       
       plot_list <- list()  
       plot_counter <- 1 

@@ -50,7 +50,7 @@ if (http_status(response)$category == "Success") {
 # select necessary columns and convert to datetime
 # return min pvl_end as a start time of the observation week
 # return max pvl_start as a end time of the observation week
-data <- data |>
+data_selected <- data |>
   
   filter(str_detect(redcap_event_name, "study_visit_week")) |>
   
@@ -63,10 +63,28 @@ data <- data |>
          pvl_end   = ymd_hm(pvl_end)) |>
   
   group_by(uid, redcap_event_name) |>
+    
+  mutate(setup = as.Date(case_when(!is.na(pvl_start) ~ min(pvl_start, na.rm = TRUE), TRUE ~ as.POSIXct(NA))),
+         v01 = as.Date(if_else(sum(!is.na(pvl_start)) > 1, sort(pvl_start, na.last = NA)[2], as.POSIXct(NA))),
+         v02 = as.Date(if_else(sum(!is.na(pvl_start)) > 2, sort(pvl_start, na.last = NA)[3], as.POSIXct(NA))),
+         v03 = as.Date(if_else(sum(!is.na(pvl_start)) > 3, sort(pvl_start, na.last = NA)[4], as.POSIXct(NA))),
+         v04 = as.Date(if_else(sum(!is.na(pvl_start)) > 4, sort(pvl_start, na.last = NA)[5], as.POSIXct(NA))),
+         takedown = as.Date(if_else(sum(!is.na(pvl_start)) > 5, sort(pvl_start, na.last = NA)[6], as.POSIXct(NA)))) |>
   
-  summarise(starttime = min(pvl_end, na.rm = TRUE),
-            endtime   = max(pvl_start, na.rm = TRUE),
-            .groups   = "drop")
+  summarise(
+    starttime = min(pvl_end, na.rm = TRUE),
+    endtime   = max(pvl_start, na.rm = TRUE),
+    setup     = replace(min(setup, na.rm = TRUE), min(setup, na.rm = TRUE) == Inf, NA),
+    v01       = replace(min(v01, na.rm = TRUE), min(v01, na.rm = TRUE) == Inf, NA),
+    v02       = replace(min(v02, na.rm = TRUE), min(v02, na.rm = TRUE) == Inf, NA),
+    v03       = replace(min(v03, na.rm = TRUE), min(v03, na.rm = TRUE) == Inf, NA),
+    v04       = replace(min(v04, na.rm = TRUE), min(v04, na.rm = TRUE) == Inf, NA),
+    takedown  = replace(min(takedown, na.rm = TRUE), min(takedown, na.rm = TRUE) == Inf, NA),
+    .groups   = "drop"
+  ) |>
+  mutate(n_days = round(difftime(endtime, starttime, units = "days"), digits = 1))
 
 # Save dataset
-write.csv(data, "../data/redcap_data.csv", row.names = FALSE)
+write.csv(data_selected, "../data/redcap_data.csv", row.names = FALSE)
+
+
