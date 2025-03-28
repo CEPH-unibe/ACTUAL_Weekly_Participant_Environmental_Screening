@@ -1,0 +1,134 @@
+---
+title: "Week 1 Summary"
+author: "Tino Schneidewind"
+date: "2025-03-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r prefix,echo=FALSE}
+rm(list=ls())
+
+
+source("../functions.R")
+
+library(readr);library(tidyr);library(dplyr);library(readxl)
+library(lubridate);library(stringr);library(ggplot2);library(gridExtra); library(grid)
+
+
+```
+
+## Overview of the personal environmental data
+
+```{r data raw, echo = FALSE}
+# REDCap for uids and cutting the data
+redcap = read_csv("../../data/redcap_data.csv") |>
+  dplyr::mutate(starttime = ymd_hms(starttime),
+                endtime   = ymd_hms(endtime),
+                redcap_event_name = substr(redcap_event_name, 13,18))
+```
+
+
+```{r data loop, echo = FALSE}
+data_full <- data.frame(uid      = "ACT",
+                        datetime = redcap$starttime[1],
+                        Value = 120,
+                        Variable = "IBX")
+
+indicators <- data.frame(place = c("IBH", "IBH", "IBT", "IBW", "IBW", ""),
+                         variable = c("HUM", "TEMP", "TEMP", "HUM", "TEMP", "NS"))
+
+# loop through uids
+for (uid in unique(redcap$uid)) {
+  
+  # extract all the files for every uid
+  files_all <- list.files(paste0("~/SynologyDrive/Participants/", uid, "/week1/"), full.names = TRUE)  
+  
+  # only continue if the folder is not emty
+  if (length(files_all) > 0) {
+    
+    
+    # loop through all dataset indicators
+    for (placevar in 1:nrow(indicators)) {
+      
+      place = indicators[placevar,1]
+      variable = indicators[placevar,2]
+      
+    
+      # extract file name for indicators
+      file <- files_all[grepl(place, files_all) & grepl(variable, files_all)]
+    
+      # only continue of the chosen excel file is not empty
+      if (length(file) > 0) {
+      
+        # remove temp/hidden files         
+        file <- file[!grepl("^~\\$", basename(file))]  
+      
+        # ensure we only pick the **first valid file** (if multiple exist)
+        file <- file[1]
+      
+        # Read the data
+        if (file.exists(file)) {  # Double-check file exists
+        
+        
+          
+      
+
+         # distinguish between noise and other files in assigning cols
+         if(variable != "NS"){
+           
+           # Read the Excel file
+          data <- read_excel(file)
+          
+           # find the row number where "Date" and "Time" are located
+          header_row <- which(data[, 1] == "Date" & data[, 2] == "Time" )
+          
+           data <- read_excel(file, skip = header_row) |>
+             dplyr::mutate(datetime = ymd_hms(paste(Date, Time)),
+                         Value = as.numeric(Value),
+                         uid = uid,
+                         Variable = paste0(place,"_",variable)) |>
+             select(uid, datetime, Value, Variable)
+         } else {
+           print("HALLO")
+
+               data <- read.delim(file, skip = 2, header = TRUE)  
+               
+               colnames(data) <- c("datetime", "Value")
+               
+               data <- data[,1:2] |>
+                      dplyr::mutate(uid = uid,
+                         Variable = paste0(place,"_",variable)) |>
+                      select(uid, datetime, Value, Variable)
+         }
+         
+          # exclude data before/after the pvl's
+         start_time <- redcap$starttime[redcap$uid == uid]
+         end_time <- redcap$endtime[redcap$uid == uid]
+         
+         data <- data |>
+           filter(datetime >= start_time & datetime <= end_time)
+         
+         # assign to the right column based on datetime
+          data_full <- rbind(data_full, data) 
+        }
+      } 
+    }
+  }
+}
+
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
