@@ -9,126 +9,231 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r prefix,echo=FALSE}
+```{r prefix,echo=FALSE, warning=FALSE, message=FALSE}
 rm(list=ls())
 
 
-source("../functions.R")
-
-library(readr);library(tidyr);library(dplyr);library(readxl)
+library(readr);library(tidyr);library(dplyr);library(readxl);library(knitr)
 library(lubridate);library(stringr);library(ggplot2);library(gridExtra); library(grid)
+
 
 
 ```
 
-## Overview of the personal environmental data
+## Week 1 overview of the personal environmental data
+This report summarizes the variables humidity and temperature measure in the individuals house (IBH_HUM, IBH_TEMP), the humidity and temperature detected by worn necklaces (IBW_HUM, IBW_TEMP), the temperature of the device taped to the skin (IBT_TEMP) and the noise inside the individuals house (NS).
 
-```{r data raw, echo = FALSE}
+```{r data raw, echo = FALSE, warning=FALSE, message=FALSE}
 # REDCap for uids and cutting the data
 redcap = read_csv("../../data/redcap_data.csv") |>
   dplyr::mutate(starttime = ymd_hms(starttime),
                 endtime   = ymd_hms(endtime),
                 redcap_event_name = substr(redcap_event_name, 13,18))
+
+# hourly summarized data
+hourly_data = read_csv("../../data/week1_hourly_data.csv") |>
+  mutate(hourly = format(hour, "%H"))
+
+diurnal_cycle <- hourly_data |>
+  group_by(hourly) |>
+  summarise(IBH_HUM = mean(IBH_HUM, na.rm = TRUE),
+            IBH_TEMP = mean(IBH_TEMP, na.rm = TRUE),
+            IBW_HUM = mean(IBW_HUM, na.rm = TRUE),
+            IBW_TEMP = mean(IBW_TEMP, na.rm = TRUE),
+            IBT_TEMP = mean(IBT_TEMP, na.rm = TRUE),
+            NS = mean(NS, na.rm = TRUE)) |>
+  mutate(hourly = as.numeric(hourly)) |>
+  na.omit()
+
+
+# Calculate summary statistics (mean, median, sd) for all numeric columns
+summary_manual <- data.frame(
+  Variable = c("IBH_HUM", "IBH_TEMP", "IBW_HUM", "IBW_TEMP", "IBT_TEMP", "NS"),  
+  mean = c(mean(hourly_data$IBH_HUM, na.rm = TRUE), mean(hourly_data$IBH_TEMP, na.rm = TRUE),
+           mean(hourly_data$IBW_HUM, na.rm = TRUE), mean(hourly_data$IBW_TEMP, na.rm = TRUE),
+           mean(hourly_data$IBT_TEMP, na.rm = TRUE), mean(hourly_data$NS, na.rm = TRUE)),
+  median = c(median(hourly_data$IBH_HUM, na.rm = TRUE), median(hourly_data$IBH_TEMP, na.rm = TRUE),
+             median(hourly_data$IBW_HUM, na.rm = TRUE), median(hourly_data$IBW_TEMP, na.rm = TRUE),
+             median(hourly_data$IBT_TEMP, na.rm = TRUE), median(hourly_data$NS, na.rm = TRUE)),
+  sd = c(sd(hourly_data$IBH_HUM, na.rm = TRUE), sd(hourly_data$IBH_TEMP, na.rm = TRUE),
+         sd(hourly_data$IBW_HUM, na.rm = TRUE), sd(hourly_data$IBW_TEMP, na.rm = TRUE),
+         sd(hourly_data$IBT_TEMP, na.rm = TRUE), sd(hourly_data$NS, na.rm = TRUE)))
 ```
 
+### Distributions
 
-```{r data loop, echo = FALSE}
-data_full <- data.frame(uid      = "ACT",
-                        datetime = redcap$starttime[1],
-                        Value = 120,
-                        Variable = "IBX")
+```{r data distribtuione, echo = FALSE, warning=FALSE, message=FALSE, fig.align='center', fig.height=4, fig.width=8}
+plot1 <- ggplot(hourly_data, aes(x = IBH_HUM)) +
+  geom_histogram(fill = "skyblue1", color = "black",
+                 aes(y = ..density..),
+                 bins = 30, 
+                 alpha = 0.6) + 
+  labs(x = "humidity [%]", y = "density", title = "House - Humidity") +
+  lims(x = c(0,100)) +
+  theme_classic()
 
-indicators <- data.frame(place = c("IBH", "IBH", "IBT", "IBW", "IBW", ""),
-                         variable = c("HUM", "TEMP", "TEMP", "HUM", "TEMP", "NS"))
 
-# loop through uids
-for (uid in unique(redcap$uid)) {
-  
-  # extract all the files for every uid
-  files_all <- list.files(paste0("~/SynologyDrive/Participants/", uid, "/week1/"), full.names = TRUE)  
-  
-  # only continue if the folder is not emty
-  if (length(files_all) > 0) {
-    
-    
-    # loop through all dataset indicators
-    for (placevar in 1:nrow(indicators)) {
-      
-      place = indicators[placevar,1]
-      variable = indicators[placevar,2]
-      
-    
-      # extract file name for indicators
-      file <- files_all[grepl(place, files_all) & grepl(variable, files_all)]
-    
-      # only continue of the chosen excel file is not empty
-      if (length(file) > 0) {
-      
-        # remove temp/hidden files         
-        file <- file[!grepl("^~\\$", basename(file))]  
-      
-        # ensure we only pick the **first valid file** (if multiple exist)
-        file <- file[1]
-      
-        # Read the data
-        if (file.exists(file)) {  # Double-check file exists
-        
-        
-          
-      
+plot2 <- ggplot(hourly_data, aes(x = IBW_HUM)) +
+  geom_histogram(fill = "skyblue1", color = "black",
+                 aes(y = ..density..),
+                 bins = 30, 
+                 alpha = 0.6) + 
+  labs(x = "humidity [%]", y = "density", title = "Worn - Humidity") +
+  lims(x = c(0,100)) +
+  theme_classic()
 
-         # distinguish between noise and other files in assigning cols
-         if(variable != "NS"){
-           
-           # Read the Excel file
-          data <- read_excel(file)
-          
-           # find the row number where "Date" and "Time" are located
-          header_row <- which(data[, 1] == "Date" & data[, 2] == "Time" )
-          
-           data <- read_excel(file, skip = header_row) |>
-             dplyr::mutate(datetime = ymd_hms(paste(Date, Time)),
-                         Value = as.numeric(Value),
-                         uid = uid,
-                         Variable = paste0(place,"_",variable)) |>
-             select(uid, datetime, Value, Variable)
-         } else {
-           print("HALLO")
 
-               data <- read.delim(file, skip = 2, header = TRUE)  
-               
-               colnames(data) <- c("datetime", "Value")
-               
-               data <- data[,1:2] |>
-                      dplyr::mutate(uid = uid,
-                         Variable = paste0(place,"_",variable)) |>
-                      select(uid, datetime, Value, Variable)
-         }
-         
-          # exclude data before/after the pvl's
-         start_time <- redcap$starttime[redcap$uid == uid]
-         end_time <- redcap$endtime[redcap$uid == uid]
-         
-         data <- data |>
-           filter(datetime >= start_time & datetime <= end_time)
-         
-         # assign to the right column based on datetime
-          data_full <- rbind(data_full, data) 
-        }
-      } 
-    }
-  }
-}
+plot3 <- ggplot(hourly_data, aes(x = IBH_TEMP)) +
+  geom_histogram(fill = "brown3", color = "black",
+                 aes(y = ..density..),
+                 bins = 30, 
+                 alpha = 0.6) + 
+  labs(x = "temperature [°C]", y = "density", title = "House - Temperature") +
+  lims(x = c(15,45)) +
+  theme_classic()
 
+plot4 <- ggplot(hourly_data, aes(x = IBW_TEMP)) +
+  geom_histogram(fill = "brown3", color = "black",
+                 aes(y = ..density..),
+                 bins = 30, 
+                 alpha = 0.6) + 
+  labs(x = "temperature [°C]", y = "density", title = "Worn - Temperature") +
+  lims(x = c(15,45)) +
+  theme_classic()
+
+plot5 <- ggplot(hourly_data, aes(x = NS)) +
+  geom_histogram(fill = "grey", color = "black",
+                 aes(y = ..density..),
+                 bins = 30, 
+                 alpha = 0.6) + 
+  labs(x = "noise [dB]", y = "density", title = "House - Noise") +
+  lims(x = c(15,90)) +
+  theme_classic()
+
+plot6 <- ggplot(hourly_data, aes(x = IBT_TEMP)) +
+  geom_histogram(fill = "brown3", color = "black",
+                 aes(y = ..density..),
+                 bins = 30, 
+                 alpha = 0.6) + 
+  labs(x = "temperature [°C]", y = "density", title = "Taped - Temperature") +
+  lims(x = c(15,45)) +
+  theme_classic()
+
+grid.arrange(plot1, plot2, plot5, plot3, plot4,  plot6, nrow = 2)
 
 ```
 
-## Including Plots
+### Diurnal Cycle
 
-You can also embed plots, for example:
+```{r data diurnal, echo = FALSE, warning=FALSE, message=FALSE, fig.align='center', fig.height=5.5, fig.width=7}
+plot1 <- ggplot(diurnal_cycle, aes(x = hourly)) + 
+  geom_line(aes(y = IBH_HUM, color = "House"), size = 1.2) + 
+  geom_line(aes(y = IBW_HUM, color = "Worn"), size = 1.2) + 
+  labs(
+    x = "hour of the day", 
+    y = "humidity [%]", 
+    title = "Humidity",
+    color = "Legend"  # Title for the legend
+  ) +
+  lims(y = c(20,50)) +
+  scale_color_manual(values = c("House" = "skyblue", "Worn" = "skyblue4"),
+                     breaks = c("Worn", "House")) + 
+  theme_classic()
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+
+plot2 <- ggplot(diurnal_cycle, aes(x = hourly)) + 
+  geom_line(aes(y = IBH_TEMP, color = "House"), size = 1.2) + 
+  geom_line(aes(y = IBW_TEMP, color = "Worn"), size = 1.2) + 
+  geom_line(aes(y = IBT_TEMP, color = "Taped"), size = 1.2) + 
+  labs(
+    x = "hour of the day", 
+    y = "temperature [°C]", 
+    title = "Temperature",
+    color = "Legend"  # Title for the legend
+  ) +
+  lims(y = c(22,40)) +
+  scale_color_manual(
+    values = c("House" = "red", "Worn" = "brown3", "Taped" = "brown4"), 
+    breaks = c("Taped", "Worn", "House")  # Set the desired legend order
+  ) +
+  theme_classic()
+
+
+plot3 <- ggplot(diurnal_cycle, aes(x = hourly)) + 
+  geom_line(aes(y = NS, color = "Noise"), size = 1.2) + 
+  labs(
+    x = "hour of the day", 
+    y = "noise [dB]", 
+    title = "Noise",
+    color = "Legend"
+  ) +
+  lims(y = c(40,60)) +
+    scale_color_manual(
+    values = c("Noise" = "darkgrey")) +
+  theme_classic()
+
+grid.arrange(plot1, plot2, plot3, ncol = 1)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+### Descriptive Statistics
+
+```{r table stats, echo = FALSE}
+
+kable(summary_manual, 
+      format = "markdown",  
+      col.names = c("Variable", "Mean", "Median", "Standard Deviation"))
+```
+
+### Scatterplots
+
+```{r intra device, echo = FALSE, warning=FALSE, messages = FALSE, fig.align='center', fig.width=11, fig.height=4}
+
+plot1 <- ggplot(hourly_data, aes(x = IBH_TEMP, y = IBH_HUM)) +
+  geom_point(size = 0.7, color = "purple1") +
+  labs(x = "temperature [°C]", y = "humidity [%]", title = "House") +
+  theme_classic()
+
+plot2 <- ggplot(hourly_data, aes(x = IBW_TEMP, y = IBW_HUM)) +
+  geom_point(size = 0.7, color = "purple1") +
+  labs(x = "temperature [°C]", y = "humidity [%]", title = "Worn") +
+  theme_classic()
+
+plot3 <- ggplot(hourly_data, aes(x = IBH_HUM, y = IBW_HUM)) +
+  geom_point(size = 0.7, color = "skyblue2") +
+  labs(x = "humidity [%]", y = "humidity [%]", title = "House x Worn") +
+  theme_classic()
+
+grid.arrange(plot1, plot2, plot3, nrow = 1)
+```
+
+<br>
+
+```{r scatterl interdevice, echo=FALSE, fig.align='center', fig.height=6, fig.width=7, warning=FALSE, message=FALSE}
+plot4 <- ggplot(hourly_data, aes(x = IBH_TEMP, y = IBT_TEMP)) +
+  geom_point(size = 0.7, color = "brown2") +
+  labs(x = "temperature [°C]", y = "temperature [°C]", title = "House x Taped") +
+  theme_classic()
+
+
+plot5 <- ggplot(hourly_data, aes(x = IBW_TEMP, y = IBT_TEMP)) +
+  geom_point(size = 0.7, color = "brown2") +
+  labs(x = "temperature [°C]", y = "temperature [°C]", title = "Worn x Taped") +
+  theme_classic()
+
+
+
+plot6 <- ggplot(hourly_data, aes(x = IBW_TEMP, y = IBH_TEMP)) +
+  geom_point(size = 0.7, color = "brown2", alpha = 0.7) +
+  labs(x = "temperature [°C]", y = "temperature [°C]", title = "Worn x House") +
+  theme_classic()
+
+plot7 <- ggplot(hourly_data, aes(x = IBH_TEMP, y = NS)) +
+  geom_point(size = 0.7, color = "#884848") +
+  labs(x = "temperature [°C]", y = "noise [dB]", title = "House") +
+  theme_classic()
+
+
+grid.arrange(plot4, plot5,  plot6, plot7, nrow = 2)
+```
+
+<br>
