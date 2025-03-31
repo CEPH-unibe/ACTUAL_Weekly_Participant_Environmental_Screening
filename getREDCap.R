@@ -87,5 +87,23 @@ data_selected <- data |>
 # Save dataset
 write.csv(data_selected, "../data/redcap_data.csv", row.names = FALSE)
 
-# TEST
 
+
+# filtering data set with the pvl log times
+data_pvl <- data |>
+  
+  filter(str_detect(redcap_event_name, "study_visit_week")) |>
+  
+  mutate(pvl_start = ymd_hm(pvl_start),
+         pvl_end   = ymd_hm(pvl_end)) |>
+  
+  select(uid,
+         redcap_event_name,
+         pvl_start,
+         pvl_end) |>
+  
+  na.omit()
+
+
+# Save dataset
+write.csv(data_pvl, "../data/redcap_pvl.csv", row.names = FALSE)
