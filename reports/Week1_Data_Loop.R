@@ -2,7 +2,7 @@
 rm(list=ls())
 
 
-source("../functions.R")
+source("functions.R")
 
 library(readr);library(tidyr);library(dplyr);library(readxl)
 library(lubridate);library(stringr);library(ggplot2);library(gridExtra); library(grid)
@@ -11,12 +11,15 @@ library(lubridate);library(stringr);library(ggplot2);library(gridExtra); library
 
 
 
-# REDCap for uids and cutting the data
-redcap = read_csv("../../data/redcap_data.csv") |>
+# REDCap for uids and start and end times
+redcap = read_csv("../data/redcap_data.csv") |>
   dplyr::mutate(starttime = ymd_hms(starttime),
                 endtime   = ymd_hms(endtime),
                 redcap_event_name = substr(redcap_event_name, 13,18))
 
+# REDCap for exclusion of pvls
+redcap_pvl = read_csv("../data/redcap_pvl.csv") |>
+  dplyr::mutate(redcap_event_name = substr(redcap_event_name, 13,18))
 
 data_full <- data.frame(uid      = "ACT",
                         datetime = redcap$starttime[1],
@@ -80,7 +83,7 @@ for (uid in unique(redcap$uid)) {
                             Variable = paste0(place,"_",variable)) |>
               select(uid, datetime, Value, Variable)
           } else {
-            print("HALLO")
+            # print("HALLO")
             
             data <- read.delim(file, skip = 2, header = TRUE)  
             
@@ -99,6 +102,21 @@ for (uid in unique(redcap$uid)) {
           data <- data |>
             filter(datetime >= start_time & datetime <= end_time)
           
+          # exclude data during pvls
+          redcap_subset <- redcap_pvl[redcap_pvl$uid == uid,]
+          
+          for(i in 2:(nrow(redcap_subset)-1)){
+            
+            # set values during pvls to na
+            data <- data |>
+              mutate(across(Value, 
+                ~ if_else(datetime >= redcap_subset$pvl_start[i] & datetime <= redcap_subset$pvl_end[i], NA, .x)
+              ))  
+            
+            
+          }
+          
+          
           # assign to the right column based on datetime
           data_full <- rbind(data_full, data) 
         }
@@ -106,6 +124,11 @@ for (uid in unique(redcap$uid)) {
     }
   }
 }
+
+
+# write the data to csv 
+write_csv(data_full, "../data/week1_minute_data_unclean.csv")
+
 
 # hourly averages
 # Calculate hourly averages
@@ -134,7 +157,7 @@ data_N <- data_hourly |>
   filter(Variable == "_NS")|>
   mutate(id_time = paste0(uid, hour))
 
-
+# combine hourly datasets.
 data_combined <- data_H %>%
   full_join(data_W %>% select(id_time, IBW_HUM, IBW_TEMP), by = "id_time") %>%
   full_join(data_T %>% select(id_time, IBT_TEMP = Value_avg), by = "id_time") %>%
@@ -142,7 +165,9 @@ data_combined <- data_H %>%
 
 
 # write the data to csv 
-write_csv(data_combined, "../data/week1_hourly_data.csv")
+write_csv(data_combined, "../data/week1_hourly_data_unclean.csv")
+
+
 
 
 
