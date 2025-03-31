@@ -21,7 +21,7 @@ library(lubridate);library(stringr);library(ggplot2);library(gridExtra); library
 ```
 
 ## Week 1 overview of the personal environmental data
-This report summarizes the variables humidity and temperature measure in the individuals house (IBH_HUM, IBH_TEMP), the humidity and temperature detected by worn necklaces (IBW_HUM, IBW_TEMP), the temperature of the device taped to the skin (IBT_TEMP) and the noise inside the individuals house (NS).
+This report summarizes the variables humidity and temperature measure in the individuals house (IBH_HUM, IBH_TEMP), the humidity and temperature detected by worn necklaces (IBW_HUM, IBW_TEMP), the temperature of the device taped to the skin (IBT_TEMP) and the noise inside the individuals house (NS). The data for this report was cut by the observation period and the data taken inside the PVLs was excluded from calculating the hourly averages.
 
 ```{r data raw, echo = FALSE, warning=FALSE, message=FALSE}
 # REDCap for uids and cutting the data
