@@ -1,0 +1,282 @@
+---
+title: ""
+author: "Tino Schneidewind"
+date: "2025-03-31"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r libs, echo = FALSE, warning=FALSE, message=FALSE}
+library(dplyr); library(tidyverse); library(ggplot2); library(grid); library(gridExtra)
+library(readxl);library(knitr);library(lubridate); library(readr)
+
+rm(list = ls())
+```
+
+## Data Cleaning Protocol
+
+The aim of this document is to derive and present a method of multiple steps to be taken that convert the raw *personal environmental data* into an analysis ready dataset. For this I selected the data of 3 participants: *ACT001D* (very good data from visual inspection), *ACT014F* (some poor data), *ACT032V* (very poor data). The variables to be cleaned are temperature, relative humidity RH, and noise.
+
+
+The steps are the following: 
+
+1. Study design limitations (extracted from PVL)
+2. Physically possible (temperature > 0K, noise > 0 dB, RH < 100% etc)
+3. Physically plausible (temperature > -10 °C etc, taped temperature < 20 °C)
+4. Variability (variable specific threshold of multiple sigma from mean)
+5. Sequence (large jumps and repeating values)
+6. Comparison of the same variables from different devices (taped T == house T)
+
+
+```{r data, message=FALSE, warning=FALSE, echo=FALSE}
+# uncleaned but selected by pvl
+data = read_csv("../../data/week1_minute_data_unclean.csv") |>
+  filter(uid %in% c("ACT001D", "ACT014F", "ACT032V")) |>
+  mutate(Variable = str_replace(Variable, "_NS", "NS"))
+
+# house data
+data_H <- data |>
+  filter(Variable == "IBH_HUM" | Variable == "IBH_TEMP")|>
+  pivot_wider(names_from = Variable, values_from = Value)
+
+
+# worn data
+data_W <- data |>
+  filter(Variable == "IBW_HUM" | Variable == "IBW_TEMP")|>
+  pivot_wider(names_from = Variable, values_from = Value)
+
+# taped data
+data_T <- data |>
+  filter(Variable == "IBT_TEMP")|>
+  pivot_wider(names_from = Variable, values_from = Value)
+
+# noise data
+data_N <- data |>
+  filter(Variable == "NS")|>
+  pivot_wider(names_from = Variable, values_from = Value)
+
+# summary table for variability
+summary_manual <- data.frame(
+  Variable = c("IBH_HUM", "IBH_TEMP", "IBW_HUM", "IBW_TEMP", "IBT_TEMP", "NS"),  
+  mean = c(mean(data_H$IBH_HUM, na.rm = TRUE), mean(data_H$IBH_TEMP, na.rm = TRUE),
+           mean(data_W$IBW_HUM, na.rm = TRUE), mean(data_W$IBW_TEMP, na.rm = TRUE),
+           mean(data_T$IBT_TEMP, na.rm = TRUE), mean(data_N$NS, na.rm = TRUE)),
+  sd = c(sd(data_H$IBH_HUM, na.rm = TRUE), sd(data_H$IBH_TEMP, na.rm = TRUE),
+         sd(data_W$IBW_HUM, na.rm = TRUE), sd(data_W$IBW_TEMP, na.rm = TRUE),
+         sd(data_T$IBT_TEMP, na.rm = TRUE), sd(data_N$NS, na.rm = TRUE)))
+```
+
+
+
+
+### 1. Study Design: Observation period and excluding PVL-visits
+
+First, data has to be excluded that was taken outside the observation window  and during personal visit log times where the device was potentially taken down and charged. Both was done while compiling all the data to one data set and can be reviewed in the Week1_Data_Loop.R file. Below you can see the data from the 3 individuals with gaps where the pvls took place.
+
+```{r study design plots, fig.align='center', fig.width=7, fig.height=4, echo=FALSE}
+for (uids in unique(data$uid)) {
+  
+  plot_H <- data_H |>
+    filter(uid == uids) |>
+  ggplot(aes(x = datetime)) +
+    geom_line(aes(y = IBH_HUM), color = "skyblue2") +
+    geom_line(aes(y = IBH_TEMP), color = "brown2") +
+    theme_classic() +
+    lims(y=c(15,80)) +
+    labs(x = "time", y = "value", title = paste0(uids, " - HOUSE"))
+  
+  plot_W <- data_W |>
+    filter(uid == uids) |>
+  ggplot(aes(x = datetime)) +
+    geom_line(aes(y = IBW_HUM), color = "skyblue2") +
+    geom_line(aes(y = IBW_TEMP), color = "brown2") +
+    theme_classic() +
+    lims(y=c(15,80)) +
+    labs(x = "time", y = "value", title = paste0(uids, " - WORN"))
+  
+  plot_T <- data_T |>
+    filter(uid == uids) |>
+  ggplot(aes(x = datetime, y = IBT_TEMP)) +
+    geom_line(color = "brown2") +
+    theme_classic() +
+    labs(x = "time", y = "value", title = paste0(uids, " - TAPED"))
+  
+    plot_N <- data_N |>
+    filter(uid == uids) |>
+  ggplot(aes(x = datetime, y = NS)) +
+    geom_line(color = "grey2") +
+    theme_classic() +
+    labs(x = "time", y = "value", title = paste0(uids, " - Noise"))
+  
+    grid.arrange(plot_H, plot_W, plot_T, plot_N, ncol=2)
+}
+```
+
+### 2. Physically possible
+
+Every Variable (temperature, RH, noise) has its physical limits that the following:
+
+1. Temperature: < -273 °C
+2. RH: < 0 % and > 100 %
+3. Noise: < 0 dB
+
+```{r physically possible}
+# House
+data_H <- data_H |>
+  mutate(IBH_TEMP = if_else(IBH_TEMP < -273, NA, IBH_TEMP),
+         IBH_HUM = if_else(IBH_HUM < 0 | IBH_HUM > 100, NA, IBH_HUM))
+
+# Worn
+data_W <- data_W |>
+  mutate(IBW_TEMP = if_else(IBW_TEMP < -273, NA, IBW_TEMP),
+         IBW_HUM = if_else(IBW_HUM < 0 | IBW_HUM > 100, NA, IBW_HUM))
+
+# Taped
+data_T <- data_T |>
+  mutate(IBT_TEMP = if_else(IBT_TEMP < -273, NA, IBT_TEMP))
+
+# Noise
+data_N <- data_N |>
+  mutate(NS = if_else(NS < 0, NA, NS))
+
+```
+
+### 3. Physically plausible
+
+The plausible range is to some degree subjective, depends on the observation surroundings and changes not only depending on the variable, but also what the variable describes (temperature taped and house). Therefore now we need to start with device specific variable value ranges. 
+
+1. House: Temperature < 0 °C and > 55 °C, RH: no additional filtering
+2. Worn: Temperature < 15 °C and > 45 °C, RH: no additional filtering
+3. Taped: Temperature < 30 °C and > 39 °C
+4. Noise: no additional filtering
+
+
+```{r physically plausible}
+# House
+data_H <- data_H |>
+  mutate(IBH_TEMP = if_else(IBH_TEMP < 0 | IBH_TEMP > 55, NA, IBH_TEMP))
+
+# Worn
+data_W <- data_W |>
+  mutate(IBW_TEMP = if_else(IBW_TEMP < 15 | IBW_TEMP > 45, NA, IBW_TEMP))
+
+# Taped
+data_T <- data_T |>
+  mutate(IBT_TEMP = if_else(IBT_TEMP < 30 | IBT_TEMP > 39, NA, IBT_TEMP))
+```
+
+
+
+### 4. Variability 
+
+The variability between variables and devices differs significantly (eg. humidity house and worn). Because we are interested in stress experienced by the individuals, it is important to not filter out extreme but realistic conditions as these represent the largest stress impact. Therefore we need to discuss this filtering method. I, personally, would rather adjust the sequence filter as they capture better invalid.
+
+
+### 5. Sequence
+Important for the sequence analysis is to keep the measuring intervals in mind. For temperature and humidity this is 15 minutes while noise was measured every minute. Again, the feasibility of a variable changes depending on the variability itself and the object that is being observed (room and body temperature).
+
+#### 5.1 large jumps in the data
+
+For this we need to come up with thresholds that should be exceeded from one value to the other, depending on the time interval, for temperature in 15 minutes. House and worn temperature can be very different but humidity should differ as the human body acts as a source of moisture. Noise can be very sporadic and intense and will not be filtered here.
+
+1. House: Temperature 3 °C, Humidity 20 %
+2. Worn: Temperature 4 °C, Humidity 25 %
+3. Taped: Temperature 2.5 °C
+
+```{r sequence large jumps}
+# House
+data_H <- data_H |>
+  mutate(IBH_TEMP = if_else(abs(IBH_TEMP - lag(IBH_TEMP, default = first(IBH_TEMP))) > 3, NA, IBH_TEMP),
+         IBH_HUM = if_else(abs(IBH_HUM - lag(IBH_HUM, default = first(IBH_HUM))) > 20, NA, IBH_HUM))
+
+# Worn
+data_W <- data_W |>
+  mutate(IBW_TEMP = if_else(abs(IBW_TEMP - lag(IBW_TEMP, default = first(IBW_TEMP))) > 4, NA, IBW_TEMP),
+         IBW_HUM = if_else(abs(IBW_HUM - lag(IBW_HUM, default = first(IBW_HUM))) > 25, NA, IBW_HUM))
+
+# Taped
+data_T <- data_T |>
+  mutate(IBT_TEMP = if_else(abs(IBT_TEMP - lag(IBT_TEMP, default = first(IBT_TEMP))) > 2.5, NA, IBT_TEMP))
+```
+
+
+#### 5.2 no changes over time
+
+The logic behind this filter is that in an organic environment, nothing is excactly the same over time. Everythin changes always ever so slightly. The absence of change indicates a malfunction (house observations) and mismeasurements (taped).
+
+1. House: Temperature 0.0001 °C, Humidity 0.01 %
+2. Worn: Temperature 0.0001 °C, Humidity 0.01 %
+3. Taped: Temperature 0.001 °C
+4. Noise: 0.0001 dB
+```{r sequence small jumps}
+# House
+data_H <- data_H |>
+  mutate(IBH_TEMP = if_else(abs(IBH_TEMP - lag(IBH_TEMP, default = first(IBH_TEMP))) < 0.0001, NA, IBH_TEMP),
+         IBH_HUM = if_else(abs(IBH_HUM - lag(IBH_HUM, default = first(IBH_HUM))) < 0.01, NA, IBH_HUM))
+
+# Worn
+data_W <- data_W |>
+  mutate(IBW_TEMP = if_else(abs(IBW_TEMP - lag(IBW_TEMP, default = first(IBW_TEMP))) < 0.0001, NA, IBW_TEMP),
+         IBW_HUM = if_else(abs(IBW_HUM - lag(IBW_HUM, default = first(IBW_HUM))) < 0.01, NA, IBW_HUM))
+
+# Taped
+data_T <- data_T |>
+  mutate(IBT_TEMP = if_else(abs(IBT_TEMP - lag(IBT_TEMP, default = first(IBT_TEMP))) < 0.0001, NA, IBT_TEMP))
+```
+
+### 6. Comparison of devices
+
+
+
+
+
+
+
+
+```{r test, fig.align='center', fig.width=7, fig.height=4, echo=FALSE}
+for (uids in unique(data$uid)) {
+  
+  plot_H <- data_H |>
+    filter(uid == uids) |>
+  ggplot(aes(x = datetime)) +
+    geom_line(aes(y = IBH_HUM), color = "skyblue2") +
+    geom_line(aes(y = IBH_TEMP), color = "brown2") +
+    theme_classic() +
+    lims(y=c(15,80)) +
+    labs(x = "time", y = "value", title = paste0(uids, " - HOUSE"))
+  
+  plot_W <- data_W |>
+    filter(uid == uids) |>
+  ggplot(aes(x = datetime)) +
+    geom_line(aes(y = IBW_HUM), color = "skyblue2") +
+    geom_line(aes(y = IBW_TEMP), color = "brown2") +
+    theme_classic() +
+    lims(y=c(15,80)) +
+    labs(x = "time", y = "value", title = paste0(uids, " - WORN"))
+  
+  plot_T <- data_T |>
+    filter(uid == uids) |>
+  ggplot(aes(x = datetime, y = IBT_TEMP)) +
+    geom_line(color = "brown2") +
+    theme_classic() +
+    labs(x = "time", y = "value", title = paste0(uids, " - TAPED"))
+  
+    plot_N <- data_N |>
+    filter(uid == uids) |>
+  ggplot(aes(x = datetime, y = NS)) +
+    geom_line(color = "grey2") +
+    theme_classic() +
+    labs(x = "time", y = "value", title = paste0(uids, " - Noise"))
+  
+    grid.arrange(plot_H, plot_W, plot_T, plot_N, ncol=2)
+}
+```
+
+
+
+
+
+
+
