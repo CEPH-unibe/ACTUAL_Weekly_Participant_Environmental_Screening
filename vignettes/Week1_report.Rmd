@@ -25,13 +25,13 @@ This report summarizes the variables humidity and temperature measure in the ind
 
 ```{r data raw, echo = FALSE, warning=FALSE, message=FALSE}
 # REDCap for uids and cutting the data
-redcap = read_csv("../../data/redcap_data.csv") |>
+redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
   dplyr::mutate(starttime = ymd_hms(starttime),
                 endtime   = ymd_hms(endtime),
                 redcap_event_name = substr(redcap_event_name, 13,18))
 
 # hourly summarized data
-hourly_data = read_csv("../../data/week1_hourly_data.csv") |>
+hourly_data = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_hourly_data_unclean.csv") |>
   mutate(hourly = format(hour, "%H"))
 
 diurnal_cycle <- hourly_data |>

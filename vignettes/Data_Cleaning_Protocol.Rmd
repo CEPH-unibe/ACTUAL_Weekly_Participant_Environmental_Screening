@@ -32,7 +32,7 @@ The steps are the following:
 
 ```{r data, message=FALSE, warning=FALSE, echo=FALSE}
 # uncleaned but selected by pvl
-data = read_csv("../../data/week1_minute_data_unclean.csv") |>
+data = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_minute_data_unclean.csv") |>
   filter(uid %in% c("ACT001D", "ACT014F", "ACT032V")) |>
   mutate(Variable = str_replace(Variable, "_NS", "NS"))
 

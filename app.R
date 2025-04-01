@@ -13,7 +13,7 @@ library(lubridate);library(stringr);library(ggplot2);library(pdftools)
 library(gridExtra); library(grid)
 
 # load cleaned recap data locally
-redcap = read_csv("../data/redcap_data.csv") |>
+redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
   dplyr::mutate(starttime = ymd_hms(starttime),
                 endtime   = ymd_hms(endtime),
                 redcap_event_name = substr(redcap_event_name, 13,18))

@@ -12,13 +12,13 @@ library(lubridate);library(stringr);library(ggplot2);library(gridExtra); library
 
 
 # REDCap for uids and start and end times
-redcap = read_csv("../data/redcap_data.csv") |>
+redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
   dplyr::mutate(starttime = ymd_hms(starttime),
                 endtime   = ymd_hms(endtime),
                 redcap_event_name = substr(redcap_event_name, 13,18))
 
 # REDCap for exclusion of pvls
-redcap_pvl = read_csv("../data/redcap_pvl.csv") |>
+redcap_pvl = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv") |>
   dplyr::mutate(redcap_event_name = substr(redcap_event_name, 13,18))
 
 data_full <- data.frame(uid      = "ACT",
@@ -127,7 +127,7 @@ for (uid in unique(redcap$uid)) {
 
 
 # write the data to csv 
-write_csv(data_full, "../data/week1_minute_data_unclean.csv")
+write_csv(data_full, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_minute_data_unclean.csv")
 
 
 # hourly averages
@@ -165,7 +165,7 @@ data_combined <- data_H %>%
 
 
 # write the data to csv 
-write_csv(data_combined, "../data/week1_hourly_data_unclean.csv")
+write_csv(data_combined, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_hourly_data_unclean.csv")
 
 
 

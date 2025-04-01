@@ -16,6 +16,9 @@
 
 library(httr)
 library(jsonlite)
+library(dplyr)
+library(stringr)
+library(lubridate)
 
 
 rm(list=ls())
@@ -85,9 +88,8 @@ data_selected <- data |>
   mutate(n_days = round(difftime(endtime, starttime, units = "days"), digits = 1))
 
 # Save dataset
-write.csv(data_selected, "../data/redcap_data.csv", row.names = FALSE)
-
-
+# write.csv(data_selected, "../data/redcap_data.csv", row.names = FALSE)
+write.csv(data_selected, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv")
 
 # filtering data set with the pvl log times
 data_pvl <- data |>
@@ -106,4 +108,5 @@ data_pvl <- data |>
 
 
 # Save dataset
-write.csv(data_pvl, "../data/redcap_pvl.csv", row.names = FALSE)
+# write.csv(data_pvl, "../data/redcap_pvl.csv", row.names = FALSE)
+write.csv(data_pvl, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv")
