@@ -12,9 +12,7 @@ Author: Tino Schneidewind
 
 
 ### Preparing this App locally
-1. You need to save this repository within another folder because we cannot upload the data and reports to GitHub
-2. in this master folder, create a data and reports folder
-3. run the getREDCap.R file with the TOKEN to get the data, you need to refresh this data from time to time. Dont push the Token to GitHub!
+- All the data is on the CCH server. For the App to run you need to be connected to it. If you want to make sure you have the latest update of th REDCap data you might need to refresh the data on the server using the getREDCap.R file and with the token to access the API. Please make sure to NOT COMMIT THE TOKEN!
 
 ### Running the App
 -  select a time period of choice
