@@ -12,7 +12,7 @@ Author: Tino Schneidewind
 
 
 ### Preparing this App locally
-- All the data is on the CCH server. For the App to run you need to be connected to it. If you want to make sure you have the latest update of th REDCap data you might need to refresh the data on the server using the getREDCap.R file and with the token to access the API. Please make sure to NOT COMMIT THE TOKEN!
+- All the data is on the CCH server. For the App to run you need to be connected to it. If you want to make sure you have the latest update of th REDCap data you might need to refresh the data on the server using the data processing/getREDCap.R file and with the token to access the API. Please make sure to NOT COMMIT THE TOKEN!
 
 ### Running the App
 -  select a time period of choice
