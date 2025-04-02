@@ -21,3 +21,5 @@ Author: Tino Schneidewind
 -  you can see all the files in the folder of the selected participant and the total number of files
 -  with the download button you save plots of the data of all participants that were started being observed in the selected time period. Caution: when very long timeperiods are selected, plots can appear empty in the PDF even though there is data.
 jidsgf
+
+sadas
