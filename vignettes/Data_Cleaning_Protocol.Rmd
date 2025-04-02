@@ -19,15 +19,20 @@ rm(list = ls())
 
 The aim of this document is to derive and present a method of multiple steps to be taken that convert the raw *personal environmental data* into an analysis ready dataset. For this I selected the data of 3 participants: *ACT001D* (very good data from visual inspection), *ACT014F* (some poor data), *ACT032V* (very poor data). The variables to be cleaned are temperature, relative humidity RH, and noise.
 
+Main reasons for cleaning are:
 
-The steps are the following: 
+- devices were taken off person
+- the device malfunctioned
+- issues in data processing from device to data
 
-1. Study design limitations (extracted from PVL)
-2. Physically possible (temperature > 0K, noise > 0 dB, RH < 100% etc)
-3. Physically plausible (temperature < -10 °C etc, taped temperature < 20 °C)
-4. Variability (variable specific threshold of multiple sigma from mean)
-5. Sequence (large jumps and repeating values)
-6. Comparison of the same variables from different devices (taped T == house T)
+The steps are the following with their relevance indicated with * (in my opinion): 
+
+1. Study design limitations (extracted from PVL)                                  *** (done)
+2. Physically possible (temperature > 0K, noise > 0 dB, RH < 100% etc).           ** (done)
+3. Physically plausible (temperature < -10 °C etc, taped temperature < 20 °C)     *** (discuss)
+4. Variability (variable specific threshold of multiple sigma from mean)          *** (tune)
+5. Sequence (large jumps and repeating values)                                    * (tune)
+6. Comparison of the same variables from different devices (taped T == house T)   ** (discuss)
 
 
 ```{r data, message=FALSE, warning=FALSE, echo=FALSE}
@@ -42,7 +47,7 @@ data_H <- data |>
   pivot_wider(names_from = Variable, values_from = Value)|>
   mutate(
     IBH_HUM_MA = rollmean(IBH_HUM, k = 8, fill = NA, align = "right"),
-    IBH_TEMP_MA = rollmean(IBH_TEMP, k = 8, fill = NA, align = "right")
+    IBH_TEMP_MA = rollmean(IBH_TEMP, k = 8, fill = NA, align = "right"),
   )
 
 
@@ -52,7 +57,8 @@ data_W <- data |>
   pivot_wider(names_from = Variable, values_from = Value)|>
   mutate(
     IBW_HUM_MA = rollmean(IBW_HUM, k = 8, fill = NA, align = "right"),
-    IBW_TEMP_MA = rollmean(IBW_TEMP, k = 8, fill = NA, align = "right")
+    IBW_TEMP_MA = rollmean(IBW_TEMP, k = 8, fill = NA, align = "right"),
+    IBW_HUM_MSD = rollapply(IBW_HUM, width = 3, FUN = sd, align = "center", fill = NA)
   )
 
 # taped data
@@ -60,7 +66,8 @@ data_T <- data |>
   filter(Variable == "IBT_TEMP")|>
   pivot_wider(names_from = Variable, values_from = Value)|>
   mutate(
-    IBT_TEMP_MA = rollmean(IBT_TEMP, k = 8, fill = NA, align = "right")
+    IBT_TEMP_MA = rollmean(IBT_TEMP, k = 8, fill = NA, align = "right"),
+    IBT_TEMP_MSD = rollapply(IBT_TEMP, width = 3, FUN = sd, align = "center", fill = NA)
   )
 
 # noise data
@@ -285,8 +292,51 @@ for (uids in unique(data$uid)) {
 
 ### 4. Variability 
 
-The variability between variables and devices differs significantly (eg. humidity house and worn). Because we are interested in stress experienced by the individuals, it is important to not filter out extreme but realistic conditions as these represent the largest stress impact. Therefore we need to discuss this filtering method. I, personally, would rather adjust the sequence filter as they capture better invalid data.
+The variability between variables and devices differs significantly (eg. humidity house and worn). Because we are interested in stress experienced by the individuals, it is important to not filter out extreme but realistic conditions as these represent the largest stress impact. However we do want to filter out worn and taped measurements that resemble the variance of the house measurements and indicate the the device was not worn/taped. For the worn data, we use the moving standard deviation of 3 centered humidity values and for the taped data the same but from temperature values.
 
+1. Worn: threshold for humidity sd: 6
+2. Taped: threshold for temperature sd: 0.1
+
+```{r variance}
+# Worn
+data_W <- data_W |>
+  mutate(IBW_TEMP_07 = if_else(IBW_HUM_MSD < 0.75, 1, 0),
+         IBW_HUM_07 = if_else(IBW_HUM_MSD < 0.75, 1, 0))
+
+# Taped
+data_T <- data_T |>
+  mutate(IBT_TEMP_07 = if_else(IBT_TEMP_MSD < 0.05, 1, 0))
+```
+
+```{r variance plot, fig.align='center', fig.width=12, fig.height=2.5, echo=FALSE, message=FALSE, warning=FALSE }
+for (uids in unique(data$uid)) {
+
+
+  
+  plot_W <- data_W |>
+  filter(uid == uids) |>
+  ggplot(aes(x = datetime)) +
+    geom_line(aes(y = IBW_HUM), color = "skyblue2") +
+    geom_line(aes(y = IBW_TEMP), color = "brown2") +
+    geom_point(aes(y = ifelse(IBW_HUM_07 == 1 & !is.na(IBW_HUM_07), IBW_HUM, NA_real_)), color = "blue") +
+    geom_point(aes(y = ifelse(IBW_TEMP_07 == 1 & !is.na(IBW_TEMP_07), IBW_TEMP, NA_real_)), color = "brown") +
+    theme_classic() +
+    lims(y = c(15, 80)) +
+    labs(x = "time", y = "value", title = paste0(uids, " - WORN"))
+  
+  plot_T <- data_T |>
+    filter(uid == uids) |>
+  ggplot(aes(x = datetime, y = IBT_TEMP)) +
+    geom_line(color = "brown2") +
+    geom_point(aes(y = ifelse(IBT_TEMP_07 == 1 & !is.na(IBT_TEMP_07), IBT_TEMP, NA_real_)), color = "brown") +
+    theme_classic() +
+    labs(x = "time", y = "value", title = paste0(uids, " - TAPED"))
+  
+    
+  
+    grid.arrange(plot_W, plot_T,ncol=4)
+}
+```
 <br>
 
 ### 5. Sequence
@@ -592,14 +642,14 @@ data_H <- data_H |>
 data_W$IBW_TEMP_06 <- data_match_HW$Match_TEMP_HW
 
 data_W <- data_W |>
-  mutate(IBW_HUM_all = rowSums(across(c(IBW_HUM_01, IBW_HUM_03, IBW_HUM_04, IBW_HUM_05, IBW_TEMP_06)), na.rm = TRUE),
-         IBW_TEMP_all = rowSums(across(c(IBW_TEMP_01, IBW_TEMP_02, IBW_TEMP_03, IBW_TEMP_04, IBW_TEMP_05, IBW_TEMP_06)), na.rm = TRUE))
+  mutate(IBW_HUM_all = rowSums(across(c(IBW_HUM_01, IBW_HUM_03, IBW_HUM_04, IBW_HUM_05, IBW_TEMP_06, IBW_HUM_07)), na.rm = TRUE),
+         IBW_TEMP_all = rowSums(across(c(IBW_TEMP_01, IBW_TEMP_02, IBW_TEMP_03, IBW_TEMP_04, IBW_TEMP_05, IBW_TEMP_06, IBW_TEMP_07)), na.rm = TRUE))
 
 # Taped
 data_T$IBT_TEMP_06 <- data_match_HT$Match_TEMP_HT[1:nrow(data_T)]
 
 data_T <- data_T |>
-  mutate(IBT_TEMP_all = rowSums(across(c(IBT_TEMP_01,IBT_TEMP_02,IBT_TEMP_03,IBT_TEMP_04,IBT_TEMP_05,IBT_TEMP_06)), na.rm=TRUE))
+  mutate(IBT_TEMP_all = rowSums(across(c(IBT_TEMP_01,IBT_TEMP_02,IBT_TEMP_03,IBT_TEMP_04,IBT_TEMP_05,IBT_TEMP_06, IBT_TEMP_07)), na.rm=TRUE))
 
 # Noise
 data_N <- data_N |>
@@ -699,8 +749,25 @@ for (uids in unique(data$uid)) {
 ```
 
 
+### Take away
+
+The most suitable methods for filtering are:
+
+- PVL visits as a reference for cutting the data
+- possible values for all to exclude unsensical data
+- plausible values for taped temperature
+- variability checks for worn temperature and humidity 
 
 
-### TAKEAWAY
+The following methods were less suitable because..
 
-I need to filter for variability to filter out the worn periods were the device was infact not worn. 
+- .. sequence large jumps: hard to find a common threshold without filtering "true" data
+- .. sequence no changes over time: minimum change threshold show inaccuracy but dont misrepresent exposure, moving averages flag "true" data through pure chance especially after slope inversions
+- .. comparison of devices: values can be the same and still be "true", hard to define a range around the reference house measurements
+
+
+<br>
+
+
+
+
