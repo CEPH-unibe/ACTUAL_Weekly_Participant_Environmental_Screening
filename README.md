@@ -20,3 +20,4 @@ Author: Tino Schneidewind
 -  select a participant that was started being observed in your selected time period to see the data
 -  you can see all the files in the folder of the selected participant and the total number of files
 -  with the download button you save plots of the data of all participants that were started being observed in the selected time period. Caution: when very long timeperiods are selected, plots can appear empty in the PDF even though there is data.
+jidsgf
