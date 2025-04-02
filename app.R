@@ -17,7 +17,7 @@ redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_S
   dplyr::mutate(starttime = ymd_hms(starttime),
                 endtime   = ymd_hms(endtime),
                 redcap_event_name = substr(redcap_event_name, 13,18))
-
+# test
   
 # functions
 source("functions.R")
