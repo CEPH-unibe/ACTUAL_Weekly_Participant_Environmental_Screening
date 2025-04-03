@@ -51,6 +51,18 @@ if (http_status(response)$category == "Success") {
   print(content(response, "text"))
 }
 
+# save all the data to CCH
+# Save dataset
+if(MACorWIN == 0){
+  
+  write.csv(data, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")
+  
+} else {
+  
+  write.csv(data, "Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")
+  
+}
+
 # select necessary columns and convert to datetime
 # return min pvl_end as a start time of the observation week
 # return max pvl_start as a end time of the observation week

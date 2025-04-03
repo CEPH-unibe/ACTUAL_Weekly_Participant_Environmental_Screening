@@ -8,7 +8,7 @@ library(readr);library(tidyr);library(dplyr);library(readxl)
 library(lubridate);library(stringr);library(ggplot2);library(gridExtra); library(grid)
 
 
-
+source("MACorWIN.R")
 
 if(MACorWIN == 0){
   
@@ -21,11 +21,7 @@ if(MACorWIN == 0){
   # REDCap for exclusion of pvls
   redcap_pvl = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv") |>
     dplyr::mutate(redcap_event_name = substr(redcap_event_name, 13,18))
-  
-  data_full <- data.frame(uid      = "ACT",
-                          datetime = redcap$starttime[1],
-                          Value = 120,
-                          Variable = "IBX")
+
   
 } else {
   
@@ -39,16 +35,16 @@ if(MACorWIN == 0){
   redcap_pvl = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv") |>
     dplyr::mutate(redcap_event_name = substr(redcap_event_name, 13,18))
   
-  data_full <- data.frame(uid      = "ACT",
-                          datetime = redcap$starttime[1],
-                          Value = 120,
-                          Variable = "IBX")
+
   
 }
 
 
 
-
+data_full <- data.frame(uid      = "ACT",
+                        datetime = redcap$starttime[1],
+                        Value = 120,
+                        Variable = "IBX")
 
 
 indicators <- data.frame(place = c("IBH", "IBH", "IBT", "IBW", "IBW", ""),
@@ -131,19 +127,19 @@ for (uid in unique(redcap$uid)) {
           data <- data |>
             filter(datetime >= start_time & datetime <= end_time)
           
-          # exclude data during pvls
-          redcap_subset <- redcap_pvl[redcap_pvl$uid == uid,]
-          
-          for(i in 2:(nrow(redcap_subset)-1)){
-            
-            # set values during pvls to na
-            data <- data |>
-              mutate(across(Value, 
-                ~ if_else(datetime >= redcap_subset$pvl_start[i] & datetime <= redcap_subset$pvl_end[i], NA, .x)
-              ))  
-            
-            
-          }
+          # # exclude data during pvls
+          # redcap_subset <- redcap_pvl[redcap_pvl$uid == uid,]
+          # 
+          # for(i in 2:(nrow(redcap_subset)-1)){
+          #   
+          #   # set values during pvls to na
+          #   data <- data |>
+          #     mutate(across(Value, 
+          #       ~ if_else(datetime >= redcap_subset$pvl_start[i] & datetime <= redcap_subset$pvl_end[i], NA, .x)
+          #     ))  
+          #   
+          #   
+          # }
           
           
           # assign to the right column based on datetime
