@@ -1,0 +1,820 @@
+---
+title: ""
+author: "Tino Schneidewind"
+date: "2025-03-31"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r libs, echo = FALSE, warning=FALSE, message=FALSE}
+library(dplyr); library(tidyverse); library(ggplot2); library(grid); library(gridExtra)
+library(readxl);library(knitr);library(lubridate); library(readr);library(zoo);library(fuzzyjoin)
+
+rm(list = ls())
+source("../MACorWIN.R")
+```
+
+## Data Cleaning Protocol (revised)
+
+The aim of this document is to derive and present a method of multiple steps to be taken that convert the raw *personal environmental data* into an analysis ready dataset. For this I selected the data of 5 participants: *ACT001D* (very good data from visual inspection), *ACT004S* and *ACT014F* (some poor data), *ACT003C* and *ACT032V* (very poor data). The variables to be cleaned are temperature, relative humidity RH, and noise.
+
+Main reasons for cleaning are:
+
+- devices were taken off person
+- the device malfunctioned
+- issues in data processing from device to data
+
+The steps of cleaning after revision are the following: 
+
+1. Study design limitations (extracted from PVL)                           
+2. Physically possible (temperature > 0K, noise > 0 dB, RH < 100% etc).            
+3. Physically plausible (temperature < -10 °C etc, taped temperature < 20 °C)      
+4. Variability (variable specific threshold of multiple sigma from mean)   
+
+```{r load redcap, echo = FALSE}
+if(MACorWIN == 0){
+  # REDCap for uids and start and end times
+  redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")
+  } else {
+  # REDCap for uids and start and end times
+  redcap = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv")
+  }
+```
+
+
+```{r data, message=FALSE, warning=FALSE, echo=FALSE}
+
+if(MACorWIN == 0){
+  # uncleaned but selected by pvl
+  data = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_minute_data_unclean.csv") |>
+    filter(uid %in% c("ACT001D", "ACT003C", "ACT004S", "ACT014F", "ACT032V")) |>
+    mutate(Variable = str_replace(Variable, "_NS", "NS"))
+  
+  } else {
+    
+    # uncleaned but selected by pvl
+    data = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_minute_data_unclean.csv") |>
+      filter(uid %in% c("ACT001D", "ACT003C", "ACT004S", "ACT014F", "ACT032V")) |>
+      mutate(Variable = str_replace(Variable, "_NS", "NS"))
+}
+
+
+# house data
+data_H <- data |>
+  filter(Variable == "IBH_HUM" | Variable == "IBH_TEMP")|>
+  pivot_wider(names_from = Variable, values_from = Value)|>
+  mutate(
+    IBH_HUM_MA = rollmean(IBH_HUM, k = 8, fill = NA, align = "right"),
+    IBH_TEMP_MA = rollmean(IBH_TEMP, k = 8, fill = NA, align = "right"),
+  )
+
+
+# worn data
+data_W <- data |>
+  filter(Variable == "IBW_HUM" | Variable == "IBW_TEMP")|>
+  pivot_wider(names_from = Variable, values_from = Value)|>
+  mutate(
+    IBW_HUM_MA = rollmean(IBW_HUM, k = 8, fill = NA, align = "right"),
+    IBW_TEMP_MA = rollmean(IBW_TEMP, k = 8, fill = NA, align = "right"),
+    IBW_HUM_MSD = rollapply(IBW_HUM, width = 3, FUN = sd, align = "center", fill = NA)
+  )
+
+# taped data
+data_T <- data |>
+  filter(Variable == "IBT_TEMP")|>
+  pivot_wider(names_from = Variable, values_from = Value)|>
+  mutate(
+    IBT_TEMP_MA = rollmean(IBT_TEMP, k = 8, fill = NA, align = "right"),
+    IBT_TEMP_MSD = rollapply(IBT_TEMP, width = 3, FUN = sd, align = "center", fill = NA)
+  )
+
+# noise data
+data_N <- data |>
+  filter(Variable == "NS")|>
+  pivot_wider(names_from = Variable, values_from = Value)|>
+  mutate(
+    NS_MA = rollmean(NS, k = 8, fill = NA, align = "right")
+  )
+
+# summary table for variability
+summary_manual <- data.frame(
+  Variable = c("IBH_HUM", "IBH_TEMP", "IBW_HUM", "IBW_TEMP", "IBT_TEMP", "NS"),  
+  mean = c(mean(data_H$IBH_HUM, na.rm = TRUE), mean(data_H$IBH_TEMP, na.rm = TRUE),
+           mean(data_W$IBW_HUM, na.rm = TRUE), mean(data_W$IBW_TEMP, na.rm = TRUE),
+           mean(data_T$IBT_TEMP, na.rm = TRUE), mean(data_N$NS, na.rm = TRUE)),
+  sd = c(sd(data_H$IBH_HUM, na.rm = TRUE), sd(data_H$IBH_TEMP, na.rm = TRUE),
+         sd(data_W$IBW_HUM, na.rm = TRUE), sd(data_W$IBW_TEMP, na.rm = TRUE),
+         sd(data_T$IBT_TEMP, na.rm = TRUE), sd(data_N$NS, na.rm = TRUE)))
+```
+
+
+
+
+### 1. Study Design: Observation period and excluding PVL-visits
+
+First, data has to be excluded that was taken outside the observation window  and during personal visit log times **if the devices were changed**. The data was cut the the observation window in th data compiling but the checking whether the device was changed will be done here.
+
+```{r filter for device changes}
+
+# on redcap the following variables indicate when a device was affected (0 nothing changed / 1 changed)
+# pvl_ibuthouse
+# pvl_ibutworn
+# pvl_ibuttaped
+# if they say "yes I have changed something" then I have to set the data NA 
+
+redcap_pvl <- redcap |>
+  select( uid, redcap_event_name, pvl_start, pvl_end,pvl_ibuthouse, pvl_ibutworn, pvl_ibuttaped) |>
+  filter(!is.na(pvl_start)) |>
+  filter(uid %in% c("ACT001D", "ACT003C", "ACT004S", "ACT014F", "ACT032V")) 
+
+
+
+
+```
+
+```{r study design plots, fig.align='center', fig.width=12, fig.height=2.5, echo=FALSE}
+for (uids in unique(data$uid)) {
+  
+  plot_H <- data_H |>
+    filter(uid == uids) |>
+  ggplot(aes(x = datetime)) +
+    geom_line(aes(y = IBH_HUM), color = "skyblue2") +
+    geom_line(aes(y = IBH_TEMP), color = "brown2") +
+    theme_classic() +
+    lims(y=c(15,80)) +
+    labs(x = "time", y = "value", title = paste0(uids, " - HOUSE"))
+  
+  plot_W <- data_W |>
+    filter(uid == uids) |>
+  ggplot(aes(x = datetime)) +
+    geom_line(aes(y = IBW_HUM), color = "skyblue2") +
+    geom_line(aes(y = IBW_TEMP), color = "brown2") +
+    theme_classic() +
+    lims(y=c(15,80)) +
+    labs(x = "time", y = "value", title = paste0(uids, " - WORN"))
+  
+  plot_T <- data_T |>
+    filter(uid == uids) |>
+  ggplot(aes(x = datetime, y = IBT_TEMP)) +
+    geom_line(color = "brown2") +
+    theme_classic() +
+    labs(x = "time", y = "value", title = paste0(uids, " - TAPED"))
+  
+    plot_N <- data_N |>
+    filter(uid == uids) |>
+  ggplot(aes(x = datetime, y = NS)) +
+    geom_line(color = "grey2") +
+    theme_classic() +
+    labs(x = "time", y = "value", title = paste0(uids, " - Noise"))
+  
+    grid.arrange(plot_H, plot_W, plot_T, plot_N, ncol=4)
+}
+```
+
+<br> 
+
+### 2. Physically possible
+
+Every Variable (temperature, RH, noise) has its physical limits that the following:
+
+1. Temperature: < -273 °C
+2. RH: < 0 % and > 100 %
+3. Noise: < 0 dB
+
+```{r physically possible}
+# House
+data_H <- data_H |>
+  mutate(IBH_TEMP_01 = if_else(IBH_TEMP < -273, 1, 0),
+         IBH_HUM_01 = if_else(IBH_HUM < 0 | IBH_HUM > 100, 1, 0))
+
+# Worn
+data_W <- data_W |>
+  mutate(IBW_TEMP_01 = if_else(IBW_TEMP < -273, 1, 0),
+         IBW_HUM_01 = if_else(IBW_HUM < 0 | IBW_HUM > 100, 1, 0))
+
+# Taped
+data_T <- data_T |>
+  mutate(IBT_TEMP_01 = if_else(IBT_TEMP < -273, 1, 0))
+
+# Noise
+data_N <- data_N |>
+  mutate(NS_01 = if_else(NS < 0, 1, 0))
+
+```
+
+No plots are shown here because there are no impossible values in the example data.
+
+
+```{r plot physically possible, fig.align='center', fig.width=12, fig.height=2.5, echo=FALSE, message=FALSE, warning=FALSE }
+# for (uids in unique(data$uid)) {
+#   
+#   plot_H <- data_H |>
+#     filter(uid == uids) |>
+#     ggplot(aes(x = datetime)) +
+#     geom_line(aes(y = IBH_HUM), color = "skyblue2") +
+#     geom_line(aes(y = IBH_TEMP), color = "brown2") +
+#     geom_point(aes(y = ifelse(IBH_HUM_01 == 1 & !is.na(IBH_HUM_01), IBH_HUM, NA_real_)), color = "blue") +
+#     geom_point(aes(y = ifelse(IBH_TEMP_01 == 1 & !is.na(IBH_TEMP_01), IBH_TEMP, NA_real_)), color = "brown") +
+#     theme_classic() +
+#     lims(y = c(15, 80)) +
+#     labs(x = "time", y = "value", title = paste0(uids, " - HOUSE"))
+#   
+#   plot_W <- data_W |>
+#   filter(uid == uids) |>
+#   ggplot(aes(x = datetime)) +
+#     geom_line(aes(y = IBW_HUM), color = "skyblue2") +
+#     geom_line(aes(y = IBW_TEMP), color = "brown2") +
+#     geom_point(aes(y = ifelse(IBW_HUM_01 == 1 & !is.na(IBW_HUM_01), IBW_HUM, NA_real_)), color = "blue") +
+#     geom_point(aes(y = ifelse(IBW_TEMP_01 == 1 & !is.na(IBW_TEMP_01), IBW_TEMP, NA_real_)), color = "brown") +
+#     theme_classic() +
+#     lims(y = c(15, 80)) +
+#     labs(x = "time", y = "value", title = paste0(uids, " - WORN"))
+#   
+#   plot_T <- data_T |>
+#     filter(uid == uids) |>
+#   ggplot(aes(x = datetime, y = IBT_TEMP)) +
+#     geom_line(color = "brown2") +
+#     geom_point(aes(y = ifelse(IBT_TEMP_01 == 1 & !is.na(IBT_TEMP_01), IBT_TEMP, NA_real_)), color = "brown") +
+#     theme_classic() +
+#     labs(x = "time", y = "value", title = paste0(uids, " - TAPED"))
+#   
+#     plot_N <- data_N |>
+#     filter(uid == uids) |>
+#     mutate(NS_05 = replace_na(NS_05, 0)) |>  # Ensure no NA in NS_01
+#     ggplot(aes(x = datetime)) +
+#     geom_line(aes(y = NS), color = "grey") +
+#     geom_point(aes(y = ifelse(NS_01 == 1 & !is.na(NS_01), NS, NA_real_)), color = "black") +  # Use NA_real_
+#     theme_classic() +
+#     labs(x = "time", y = "value", title = paste0(uids, " - Noise"))
+#   
+#     grid.arrange(plot_H, plot_W, plot_T, plot_N, ncol=4)
+# }
+```
+
+<br>
+
+### 3. Physically plausible
+
+The plausible range is to some degree subjective, depends on the observation surroundings and changes not only depending on the variable, but also what the variable describes (temperature taped and house). Therefore now we need to start with device specific variable value ranges. 
+
+1. House: Temperature < 0 °C and > 55 °C, RH: no additional filtering
+2. Worn: Temperature < 15 °C and > 45 °C, RH: no additional filtering
+3. Taped: Temperature < 33 °C and > 39 °C
+4. Noise: no additional filtering
+
+
+```{r physically plausible}
+# House
+data_H <- data_H |>
+  mutate(IBH_TEMP_02 = if_else(IBH_TEMP < 0 | IBH_TEMP > 55, 1, 0))
+
+# Worn
+data_W <- data_W |>
+  mutate(IBW_TEMP_02 = if_else(IBW_TEMP < 15 | IBW_TEMP > 45, 1, 0))
+
+# Taped
+data_T <- data_T |>
+  mutate(IBT_TEMP_02 = if_else(IBT_TEMP < 33 | IBT_TEMP > 39, 1, 0))
+```
+
+
+```{r plot physically plausible, fig.align='center', fig.width=12, fig.height=2.5, echo=FALSE, message=FALSE, warning=FALSE }
+for (uids in unique(data$uid)) {
+  
+  plot_H <- data_H |>
+    filter(uid == uids) |>
+    ggplot(aes(x = datetime)) +
+    geom_line(aes(y = IBH_HUM), color = "skyblue2") +
+    geom_line(aes(y = IBH_TEMP), color = "brown2") +
+    # geom_point(aes(y = ifelse(IBH_HUM_05 == 1 & !is.na(IBH_HUM_05), IBH_HUM, NA_real_)), color = "blue") +
+    geom_point(aes(y = ifelse(IBH_TEMP_02 == 1 & !is.na(IBH_TEMP_02), IBH_TEMP, NA_real_)), color = "brown") +
+    theme_classic() +
+    lims(y = c(15, 80)) +
+    labs(x = "time", y = "value", title = paste0(uids, " - HOUSE"))
+  
+  plot_W <- data_W |>
+  filter(uid == uids) |>
+  ggplot(aes(x = datetime)) +
+    geom_line(aes(y = IBW_HUM), color = "skyblue2") +
+    geom_line(aes(y = IBW_TEMP), color = "brown2") +
+    # geom_point(aes(y = ifelse(IBW_HUM_05 == 1 & !is.na(IBW_HUM_05), IBW_HUM, NA_real_)), color = "blue") +
+    geom_point(aes(y = ifelse(IBW_TEMP_02 == 1 & !is.na(IBW_TEMP_02), IBW_TEMP, NA_real_)), color = "brown") +
+    theme_classic() +
+    lims(y = c(15, 80)) +
+    labs(x = "time", y = "value", title = paste0(uids, " - WORN"))
+  
+  plot_T <- data_T |>
+    filter(uid == uids) |>
+  ggplot(aes(x = datetime, y = IBT_TEMP)) +
+    geom_line(color = "brown2") +
+    geom_point(aes(y = ifelse(IBT_TEMP_02 == 1 & !is.na(IBT_TEMP_02), IBT_TEMP, NA_real_)), color = "brown") +
+    theme_classic() +
+    labs(x = "time", y = "value", title = paste0(uids, " - TAPED"))
+  
+    plot_N <- data_N |>
+    filter(uid == uids) |>
+    # mutate(NS_05 = replace_na(NS_05, 0)) |>  # Ensure no NA in NS_01
+    ggplot(aes(x = datetime)) +
+    geom_line(aes(y = NS), color = "grey") +
+    # geom_point(aes(y = ifelse(NS_05 == 1 & !is.na(NS_05), NS, NA_real_)), color = "black") +  # Use NA_real_
+    theme_classic() +
+    labs(x = "time", y = "value", title = paste0(uids, " - Noise"))
+  
+    grid.arrange(plot_H, plot_W, plot_T, plot_N, ncol=4)
+}
+```
+
+<br>
+
+### 4. Variability 
+
+The variability between variables and devices differs significantly (eg. humidity house and worn). Because we are interested in stress experienced by the individuals, it is important to not filter out extreme but realistic conditions as these represent the largest stress impact. However we do want to filter out worn and taped measurements that resemble the variance of the house measurements and indicate the the device was not worn/taped. For the worn data, we use the moving standard deviation of 3 centered humidity values and for the taped data the same but from temperature values.
+
+1. Worn: threshold for humidity sd: 6
+2. Taped: threshold for temperature sd: 0.1
+
+```{r variance}
+# Worn
+data_W <- data_W |>
+  mutate(IBW_TEMP_07 = if_else(IBW_HUM_MSD < 0.75, 1, 0),
+         IBW_HUM_07 = if_else(IBW_HUM_MSD < 0.75, 1, 0))
+
+# Taped
+data_T <- data_T |>
+  mutate(IBT_TEMP_07 = if_else(IBT_TEMP_MSD < 0.05, 1, 0))
+```
+
+```{r variance plot, fig.align='center', fig.width=12, fig.height=2.5, echo=FALSE, message=FALSE, warning=FALSE }
+for (uids in unique(data$uid)) {
+
+
+  
+  plot_W <- data_W |>
+  filter(uid == uids) |>
+  ggplot(aes(x = datetime)) +
+    geom_line(aes(y = IBW_HUM), color = "skyblue2") +
+    geom_line(aes(y = IBW_TEMP), color = "brown2") +
+    geom_point(aes(y = ifelse(IBW_HUM_07 == 1 & !is.na(IBW_HUM_07), IBW_HUM, NA_real_)), color = "blue") +
+    geom_point(aes(y = ifelse(IBW_TEMP_07 == 1 & !is.na(IBW_TEMP_07), IBW_TEMP, NA_real_)), color = "brown") +
+    theme_classic() +
+    lims(y = c(15, 80)) +
+    labs(x = "time", y = "value", title = paste0(uids, " - WORN"))
+  
+  plot_T <- data_T |>
+    filter(uid == uids) |>
+  ggplot(aes(x = datetime, y = IBT_TEMP)) +
+    geom_line(color = "brown2") +
+    geom_point(aes(y = ifelse(IBT_TEMP_07 == 1 & !is.na(IBT_TEMP_07), IBT_TEMP, NA_real_)), color = "brown") +
+    theme_classic() +
+    labs(x = "time", y = "value", title = paste0(uids, " - TAPED"))
+  
+    
+  
+    grid.arrange(plot_W, plot_T,ncol=4)
+}
+```
+<br>
+
+### 5. Sequence
+Important for the sequence analysis is to keep the measuring intervals in mind. For temperature and humidity this is 15 minutes while noise was measured every minute. Again, the feasibility of a variable changes depending on the variability itself and the object that is being observed (room and body temperature).
+
+#### 5.1 Large jumps in the data
+
+For this we need to come up with thresholds that should be exceeded from one value to the other, depending on the time interval, for temperature in 15 minutes. House and worn temperature can be very different but humidity should differ as the human body acts as a source of moisture. Noise can be very sporadic and intense and will not be filtered here.
+
+1. House: Temperature 3 °C, Humidity 20 %
+2. Worn: Temperature 6 °C, Humidity 35 %
+3. Taped: Temperature 3 °C
+
+```{r sequence large jumps}
+# House
+data_H <- data_H |>
+  mutate(IBH_TEMP_03 = if_else(abs(IBH_TEMP - lag(IBH_TEMP, default = first(IBH_TEMP))) > 3, 1, 0),
+         IBH_HUM_03 = if_else(abs(IBH_HUM - lag(IBH_HUM, default = first(IBH_HUM))) > 20, 1, 0))
+
+# Worn
+data_W <- data_W |>
+  mutate(IBW_TEMP_03 = if_else(abs(IBW_TEMP - lag(IBW_TEMP, default = first(IBW_TEMP))) > 6, 1, 0),
+         IBW_HUM_03 = if_else(abs(IBW_HUM - lag(IBW_HUM, default = first(IBW_HUM))) > 35, 1, 0))
+
+# Taped
+data_T <- data_T |>
+  mutate(IBT_TEMP_03 = if_else(abs(IBT_TEMP - lag(IBT_TEMP, default = first(IBT_TEMP))) > 3, 1, 0))
+```
+
+```{r plot large jumps, fig.align='center', fig.width=12, fig.height=2.5, echo=FALSE, message=FALSE, warning=FALSE }
+for (uids in unique(data$uid)) {
+  
+  plot_H <- data_H |>
+    filter(uid == uids) |>
+    ggplot(aes(x = datetime)) +
+    geom_line(aes(y = IBH_HUM), color = "skyblue2") +
+    geom_line(aes(y = IBH_TEMP), color = "brown2") +
+    geom_point(aes(y = ifelse(IBH_HUM_03 == 1 & !is.na(IBH_HUM_03), IBH_HUM, NA_real_)), color = "blue") +
+    geom_point(aes(y = ifelse(IBH_TEMP_03 == 1 & !is.na(IBH_TEMP_03), IBH_TEMP, NA_real_)), color = "brown") +
+    theme_classic() +
+    lims(y = c(15, 80)) +
+    labs(x = "time", y = "value", title = paste0(uids, " - HOUSE"))
+  
+  plot_W <- data_W |>
+  filter(uid == uids) |>
+  ggplot(aes(x = datetime)) +
+    geom_line(aes(y = IBW_HUM), color = "skyblue2") +
+    geom_line(aes(y = IBW_TEMP), color = "brown2") +
+    geom_point(aes(y = ifelse(IBW_HUM_03 == 1 & !is.na(IBW_HUM_03), IBW_HUM, NA_real_)), color = "blue") +
+    geom_point(aes(y = ifelse(IBW_TEMP_03 == 1 & !is.na(IBW_TEMP_03), IBW_TEMP, NA_real_)), color = "brown") +
+    theme_classic() +
+    lims(y = c(15, 80)) +
+    labs(x = "time", y = "value", title = paste0(uids, " - WORN"))
+  
+  plot_T <- data_T |>
+    filter(uid == uids) |>
+  ggplot(aes(x = datetime, y = IBT_TEMP)) +
+    geom_line(color = "brown2") +
+    geom_point(aes(y = ifelse(IBT_TEMP_03 == 1 & !is.na(IBT_TEMP_03), IBT_TEMP, NA_real_)), color = "brown") +
+    theme_classic() +
+    labs(x = "time", y = "value", title = paste0(uids, " - TAPED"))
+  
+    plot_N <- data_N |>
+    filter(uid == uids) |>
+    # mutate(NS_05 = replace_na(NS_05, 0)) |>  # Ensure no NA in NS_01
+    ggplot(aes(x = datetime)) +
+    geom_line(aes(y = NS), color = "grey") +
+    # geom_point(aes(y = ifelse(NS_05 == 1 & !is.na(NS_05), NS, NA_real_)), color = "black") +  # Use NA_real_
+    theme_classic() +
+    labs(x = "time", y = "value", title = paste0(uids, " - Noise"))
+  
+    grid.arrange(plot_H, plot_W, plot_T, plot_N, ncol=4)
+}
+```
+
+#### 5.2 No changes over time
+
+The logic behind this filter is that in an organic environment, nothing is exactly the same over time. Everything changes always ever so slightly. The absence of change indicates a malfunction (house observations) and mismeasurements (taped). This, however, could be disregarded as the exposure should be very close to the mismeasured value. Therefore this filter will be excluded for now but thresholds for deviance from the previous values should be at least the last digit of the available digits:
+
+1. House: Temperature 0.0001 °C, Humidity 0.01 %
+2. Worn: Temperature 0.0001 °C, Humidity 0.01 %
+3. Taped: Temperature 0.001 °C
+4. Noise: 0.0001 dB
+
+```{r sequence small jumps, echo = TRUE}
+# WARNING Both outcomes are set to 0
+
+# House
+data_H <- data_H |>
+  mutate(IBH_TEMP_04 = if_else(abs(IBH_TEMP - lag(IBH_TEMP, default = first(IBH_TEMP))) < 0.00001, 0, 0),  
+         IBH_HUM_04 = if_else(abs(IBH_HUM - lag(IBH_HUM, default = first(IBH_HUM))) < 0.001, 0, 0))
+
+# Worn
+data_W <- data_W |>
+  mutate(IBW_TEMP_04 = if_else(abs(IBW_TEMP - lag(IBW_TEMP, default = first(IBW_TEMP))) < 0.00001, 0, 0),
+         IBW_HUM_04 = if_else(abs(IBW_HUM - lag(IBW_HUM, default = first(IBW_HUM))) < 0.001, 0, 0))
+
+# Taped
+data_T <- data_T |>
+  mutate(IBT_TEMP_04 = if_else(abs(IBT_TEMP - lag(IBT_TEMP, default = first(IBT_TEMP))) < 0.00001, 0, 0)) 
+
+# Noise 
+data_N <- data_N |>
+  mutate(NS_04 = ifelse(abs(NS - lag(NS, default = first(NS))) < 0.00001, 0, 0)) 
+```
+
+```{r plot noc changes 1, fig.align='center', fig.width=12, fig.height=2.5, echo=FALSE, message=FALSE, warning=FALSE }
+# for (uids in unique(data$uid)) {
+#   
+#   plot_H <- data_H |>
+#     filter(uid == uids) |>
+#     ggplot(aes(x = datetime)) +
+#     geom_line(aes(y = IBH_HUM), color = "skyblue2") +
+#     geom_line(aes(y = IBH_TEMP), color = "brown2") +
+#     geom_point(aes(y = ifelse(IBH_HUM_04 == 1 & !is.na(IBH_HUM_04), IBH_HUM, NA_real_)), color = "blue") +
+#     geom_point(aes(y = ifelse(IBH_TEMP_04 == 1 & !is.na(IBH_TEMP_04), IBH_TEMP, NA_real_)), color = "brown") +
+#     theme_classic() +
+#     lims(y = c(15, 80)) +
+#     labs(x = "time", y = "value", title = paste0(uids, " - HOUSE"))
+#   
+#   plot_W <- data_W |>
+#   filter(uid == uids) |>
+#   ggplot(aes(x = datetime)) +
+#     geom_line(aes(y = IBW_HUM), color = "skyblue2") +
+#     geom_line(aes(y = IBW_TEMP), color = "brown2") +
+#     geom_point(aes(y = ifelse(IBW_HUM_04 == 1 & !is.na(IBW_HUM_04), IBW_HUM, NA_real_)), color = "blue") +
+#     geom_point(aes(y = ifelse(IBW_TEMP_04 == 1 & !is.na(IBW_TEMP_04), IBW_TEMP, NA_real_)), color = "brown") +
+#     theme_classic() +
+#     lims(y = c(15, 80)) +
+#     labs(x = "time", y = "value", title = paste0(uids, " - WORN"))
+#   
+#   plot_T <- data_T |>
+#     filter(uid == uids) |>
+#   ggplot(aes(x = datetime, y = IBT_TEMP)) +
+#     geom_line(color = "brown2") +
+#     geom_point(aes(y = ifelse(IBT_TEMP_04 == 1 & !is.na(IBT_TEMP_04), IBT_TEMP, NA_real_)), color = "brown") +
+#     theme_classic() +
+#     labs(x = "time", y = "value", title = paste0(uids, " - TAPED"))
+#   
+#     plot_N <- data_N |>
+#     filter(uid == uids) |>
+#     mutate(NS_05 = replace_na(NS_04, 0)) |>  # Ensure no NA in NS_01
+#     ggplot(aes(x = datetime)) +
+#     geom_line(aes(y = NS), color = "grey") +
+#     geom_point(aes(y = ifelse(NS_04 == 1 & !is.na(NS_04), NS, NA_real_)), color = "black") +  # Use NA_real_
+#     theme_classic() +
+#     labs(x = "time", y = "value", title = paste0(uids, " - Noise"))
+#   
+#     grid.arrange(plot_H, plot_W, plot_T, plot_N, ncol=4)
+# }
+```
+
+I suggest we should rather flag values that have not changed over a longer period of time like 8 intervals (2 hours). For this I utilized a backwards looking moving average.
+
+```{r sequence small jumps moving average, echo = TRUE}
+# WARNING Both outcomes are set to 0
+
+# House
+data_H <- data_H |>
+  mutate(IBH_TEMP_05 = if_else(IBH_TEMP == IBH_TEMP_MA, 0, 0),
+         IBH_HUM_05 = if_else(IBH_HUM == IBH_HUM_MA, 0, 0))
+
+# Worn
+data_W <- data_W |>
+  mutate(IBW_TEMP_05 = if_else(IBW_TEMP == IBW_TEMP_MA, 0, 0),
+         IBW_HUM_05 = if_else(IBW_HUM == IBW_HUM_MA, 0, 0))
+
+# Taped
+data_T <- data_T |>
+  mutate(IBT_TEMP_05 = if_else(IBT_TEMP == IBT_TEMP_MA, 0, 0))
+
+# Noise
+data_N <- data_N |>
+  mutate(NS_05 = if_else(NS == NS_MA, 0, 0))
+```
+
+
+
+```{r no changes 2, fig.align='center', fig.width=12, fig.height=2.5, echo=FALSE, message=FALSE, warning=FALSE }
+# for (uids in unique(data$uid)) {
+#   
+#   plot_H <- data_H |>
+#     filter(uid == uids) |>
+#     ggplot(aes(x = datetime)) +
+#     geom_line(aes(y = IBH_HUM), color = "skyblue2") +
+#     geom_line(aes(y = IBH_TEMP), color = "brown2") +
+#     geom_point(aes(y = ifelse(IBH_HUM_05 == 1 & !is.na(IBH_HUM_05), IBH_HUM, NA_real_)), color = "blue") +
+#     geom_point(aes(y = ifelse(IBH_TEMP_05 == 1 & !is.na(IBH_TEMP_05), IBH_TEMP, NA_real_)), color = "brown") +
+#     theme_classic() +
+#     lims(y = c(15, 80)) +
+#     labs(x = "time", y = "value", title = paste0(uids, " - HOUSE"))
+#   
+#   plot_W <- data_W |>
+#   filter(uid == uids) |>
+#   ggplot(aes(x = datetime)) +
+#     geom_line(aes(y = IBW_HUM), color = "skyblue2") +
+#     geom_line(aes(y = IBW_TEMP), color = "brown2") +
+#     geom_point(aes(y = ifelse(IBW_HUM_05 == 1 & !is.na(IBW_HUM_05), IBW_HUM, NA_real_)), color = "blue") +
+#     geom_point(aes(y = ifelse(IBW_TEMP_05 == 1 & !is.na(IBW_TEMP_05), IBW_TEMP, NA_real_)), color = "brown") +
+#     theme_classic() +
+#     lims(y = c(15, 80)) +
+#     labs(x = "time", y = "value", title = paste0(uids, " - WORN"))
+#   
+#   plot_T <- data_T |>
+#     filter(uid == uids) |>
+#   ggplot(aes(x = datetime, y = IBT_TEMP)) +
+#     geom_line(color = "brown2") +
+#     geom_point(aes(y = ifelse(IBT_TEMP_05 == 1 & !is.na(IBT_TEMP_05), IBT_TEMP, NA_real_)), color = "brown") +
+#     theme_classic() +
+#     labs(x = "time", y = "value", title = paste0(uids, " - TAPED"))
+#   
+#     plot_N <- data_N |>
+#     filter(uid == uids) |>
+#     mutate(NS_05 = replace_na(NS_05, 0)) |>  # Ensure no NA in NS_01
+#     ggplot(aes(x = datetime)) +
+#     geom_line(aes(y = NS), color = "grey") +
+#     geom_point(aes(y = ifelse(NS_05 == 1 & !is.na(NS_05), NS, NA_real_)), color = "black") +  # Use NA_real_
+#     theme_classic() +
+#     labs(x = "time", y = "value", title = paste0(uids, " - Noise"))
+#   
+#     grid.arrange(plot_H, plot_W, plot_T, plot_N, ncol=4)
+# }
+```
+
+However, this leads to flagging of values after a slope change and consequently is not a perfect method to detect unchanged values.
+<br>
+
+### 6. Comparison of devices
+
+This correction investigates whether worn or taped devices were taken off which I believe is crucial in this data cleaning. For this, we use the house device as a reference. The issue here is that the timestamps are not exactly the same but can be shifted by up to 7 minutes and 30 seconds (due to the 15 min interval). Therefore, we will compare each taped and worn measurement with the measurement taken previously by the house device. As an indicator for this we will use only temperature as house and worn humidity can likely be very similar even with proper measurements.
+
+The worn and taped temperature have to be within +- 0.1 °C of the house temperature to be flagged. Humidity measurements are flagged if the temperature measurements are flagged as they do no represent personal exposure anymore.
+
+```{r matching, warning=FALSE, message=FALSE}
+data_match_HW <- fuzzy_left_join(
+  data_H,
+  data_W,
+  by = "datetime",
+  match_fun = list(`<=`)
+) |> 
+  group_by(datetime.x) |> 
+  slice_min(datetime.y) |>  
+  ungroup() |> 
+  mutate(Match_TEMP_HW = ifelse(IBW_TEMP < (IBH_TEMP + 0.1) & IBW_TEMP > (IBH_TEMP - 0.1), 1, 0)) |> 
+  select(uid.x, datetime.x, IBH_TEMP, IBW_TEMP, IBW_HUM, Match_TEMP_HW) 
+
+data_match_HT <- fuzzy_left_join(
+  data_H,
+  data_T,
+  by = "datetime",
+  match_fun = list(`<=`)
+) |> 
+  group_by(datetime.x) |> 
+  slice_min(datetime.y) |>  
+  ungroup() |> 
+  mutate(Match_TEMP_HT = ifelse(IBT_TEMP < (IBH_TEMP + 0.1) & IBT_TEMP > (IBH_TEMP - 0.1), 1, 0)) |> 
+  select(uid.x, datetime.x, IBH_TEMP, IBT_TEMP, Match_TEMP_HT)
+```
+
+```{r comparison, fig.align='center', fig.width=12, fig.height=2.5, echo=FALSE, message=FALSE, warning=FALSE }
+for (uids in unique(data$uid)) {
+
+
+  
+  plot_W <- data_match_HW |>
+  filter(uid.x == uids) |>
+  ggplot(aes(x = datetime.x)) +
+    geom_line(aes(y = IBW_HUM), color = "skyblue2") +
+    geom_line(aes(y = IBW_TEMP), color = "brown2") +
+    geom_point(aes(y = ifelse(Match_TEMP_HW == 1 & !is.na(Match_TEMP_HW), IBW_HUM, NA_real_)), color = "blue") +
+    geom_point(aes(y = ifelse(Match_TEMP_HW == 1 & !is.na(Match_TEMP_HW), IBW_TEMP, NA_real_)), color = "brown") +
+    theme_classic() +
+    lims(y = c(15, 80)) +
+    labs(x = "time", y = "value", title = paste0(uids, " - WORN"))
+  
+  plot_T <- data_match_HT |>
+    filter(uid.x == uids) |>
+  ggplot(aes(x = datetime.x, y = IBT_TEMP)) +
+    geom_line(color = "brown2") +
+    geom_point(aes(y = ifelse(Match_TEMP_HT == 1 & !is.na(Match_TEMP_HT), IBT_TEMP, NA_real_)), color = "brown") +
+    theme_classic() +
+    labs(x = "time", y = "value", title = paste0(uids, " - TAPED"))
+  
+    
+  
+    grid.arrange(plot_W, plot_T,ncol=4)
+}
+```
+
+
+
+### FINAL PRODUCT
+
+The final cleaning is the combination of all the above filters. 
+
+```{r final, echo=FALSE, warning=FALSE, message=FALSE}
+# House
+data_H <- data_H |>
+  mutate(IBH_HUM_all = rowSums(across(c(IBH_HUM_01, IBH_HUM_03, IBH_HUM_04, IBH_HUM_05)), na.rm = TRUE),
+         IBH_TEMP_all = rowSums(across(c(IBH_TEMP_01, IBH_TEMP_02, IBH_TEMP_03, IBH_TEMP_04, IBH_TEMP_05)), na.rm = TRUE))
+
+# Worn
+data_W$IBW_TEMP_06 <- data_match_HW$Match_TEMP_HW
+
+data_W <- data_W |>
+  mutate(IBW_HUM_all = rowSums(across(c(IBW_HUM_01, IBW_HUM_03, IBW_HUM_04, IBW_HUM_05, IBW_TEMP_06, IBW_HUM_07)), na.rm = TRUE),
+         IBW_TEMP_all = rowSums(across(c(IBW_TEMP_01, IBW_TEMP_02, IBW_TEMP_03, IBW_TEMP_04, IBW_TEMP_05, IBW_TEMP_06, IBW_TEMP_07)), na.rm = TRUE))
+
+# Taped
+data_T$IBT_TEMP_06 <- data_match_HT$Match_TEMP_HT[1:nrow(data_T)]
+
+data_T <- data_T |>
+  mutate(IBT_TEMP_all = rowSums(across(c(IBT_TEMP_01,IBT_TEMP_02,IBT_TEMP_03,IBT_TEMP_04,IBT_TEMP_05,IBT_TEMP_06, IBT_TEMP_07)), na.rm=TRUE))
+
+# Noise
+data_N <- data_N |>
+  mutate(NS_all = rowSums(across(c(NS_01, NS_04, NS_05)), na.rm = TRUE))
+
+```
+
+
+
+
+
+```{r plot final, fig.align='center', fig.width=12, fig.height=2.5, echo=FALSE, message=FALSE, warning=FALSE }
+# for (uids in unique(data$uid)) {
+# 
+#   plot_H <- data_H |>
+#     filter(uid == uids) |>
+#     ggplot(aes(x = datetime)) +
+#     geom_line(aes(y = IBH_HUM), color = "skyblue2") +
+#     geom_line(aes(y = IBH_TEMP), color = "brown2") +
+#     geom_point(aes(y = ifelse(IBH_HUM_all > 0 , IBH_HUM, NA_real_)), color = "blue") +
+#     geom_point(aes(y = ifelse(IBH_TEMP_all > 0, IBH_TEMP, NA_real_)), color = "brown") +
+#     theme_classic() +
+#     lims(y = c(15, 80)) +
+#     labs(x = "time", y = "value", title = paste0(uids, " - HOUSE"))
+# 
+#   plot_W <- data_W |>
+#   filter(uid == uids) |>
+#   ggplot(aes(x = datetime)) +
+#     geom_line(aes(y = IBW_HUM), color = "skyblue2") +
+#     geom_line(aes(y = IBW_TEMP), color = "brown2") +
+#     geom_point(aes(y = ifelse(IBW_HUM_all > 0, IBW_HUM, NA_real_)), color = "blue") +
+#     geom_point(aes(y = ifelse(IBW_TEMP_all > 0, IBW_TEMP, NA_real_)), color = "brown") +
+#     theme_classic() +
+#     lims(y = c(15, 80)) +
+#     labs(x = "time", y = "value", title = paste0(uids, " - WORN"))
+# 
+#   plot_T <- data_T |>
+#     filter(uid == uids) |>
+#   ggplot(aes(x = datetime, y = IBT_TEMP)) +
+#     geom_line(color = "brown2") +
+#     geom_point(aes(y = ifelse(IBT_TEMP_all > 0, IBT_TEMP, NA_real_)), color = "brown") +
+#     theme_classic() +
+#     labs(x = "time", y = "value", title = paste0(uids, " - TAPED"))
+# 
+#     plot_N <- data_N |>
+#     filter(uid == uids) |>
+#     # mutate(NS_05 = replace_na(NS_all, 0)) |>  # Ensure no NA in NS_01
+#     ggplot(aes(x = datetime)) +
+#     geom_line(aes(y = NS), color = "grey") +
+#     geom_point(aes(y = ifelse(NS_all >  0, NS, NA_real_)), color = "black") +  # Use NA_real_
+#     theme_classic() +
+#     labs(x = "time", y = "value", title = paste0(uids, " - Noise"))
+# 
+#     grid.arrange(plot_H, plot_W, plot_T, plot_N, ncol=4)
+# }
+```
+
+
+
+```{r plot final2, fig.align='center', fig.width=12, fig.height=2.5, echo=FALSE, message=FALSE, warning=FALSE }
+for (uids in unique(data$uid)) {
+
+  plot_H <- data_H |>
+    filter(uid == uids) |>
+    ggplot(aes(x = datetime)) +
+    geom_line(aes(y = ifelse(IBH_HUM_all > 0 ,NA_real_, IBH_HUM)), color = "skyblue2") +
+    geom_line(aes(y = ifelse(IBH_TEMP_all > 0 ,NA_real_, IBH_TEMP)), color = "brown2") +
+    theme_classic() +
+    lims(y = c(15, 80)) +
+    labs(x = "time", y = "value", title = paste0(uids, " - HOUSE"))
+
+  plot_W <- data_W |>
+  filter(uid == uids) |>
+  ggplot(aes(x = datetime)) +
+    geom_line(aes(y = ifelse(IBW_HUM_all > 0,NA_real_, IBW_HUM)), color = "skyblue2") +
+    geom_line(aes(y = ifelse(IBW_TEMP_all > 0,NA_real_, IBW_TEMP)), color = "brown2") +
+    theme_classic() +
+    lims(y = c(15, 80)) +
+    labs(x = "time", y = "value", title = paste0(uids, " - WORN"))
+
+  plot_T <- data_T |>
+    filter(uid == uids) |>
+  ggplot(aes(x = datetime, y = ifelse(IBT_TEMP_all > 0,NA_real_, IBT_TEMP))) +
+    geom_line(color = "brown2") +
+    theme_classic() +
+    labs(x = "time", y = "value", title = paste0(uids, " - TAPED"))
+
+    plot_N <- data_N |>
+    filter(uid == uids) |>
+    ggplot(aes(x = datetime)) +
+    geom_line(aes(y = ifelse(NS_all >  0, NA_real_, NS)), color = "grey") +
+    theme_classic() +
+    labs(x = "time", y = "value", title = paste0(uids, " - Noise"))
+
+    grid.arrange(plot_H, plot_W, plot_T, plot_N, ncol=4)
+}
+```
+
+
+### Take away
+
+The most suitable methods for filtering are:
+
+- PVL visits as a reference for cutting the data
+- possible values for all to exclude unsensical data
+- plausible values for taped temperature
+- variability checks for worn temperature and humidity 
+
+
+The following methods were less suitable because..
+
+- .. sequence large jumps: hard to find a common threshold without filtering "true" data
+- .. sequence no changes over time: minimum change threshold show inaccuracy but dont misrepresent exposure, moving averages flag "true" data through pure chance especially after slope inversions
+- .. comparison of devices: values can be the same and still be "true", hard to define a range around the reference house measurements
+
+
+<br>
+
+### Feedback from Apolline and Lis
+
+- **Study design limitation:** only exclude data from PVLs if the corresponding device has been charged/changed
+- **Physically plausible:** lower threshold for worn temperature -> below 10 °C, threshold for taped temperature IQR
+- **Variability:** flag only values if 3 consecutive values have exceeded the threshold
+- **Sequence:** not useful
+
+- **Final Plot:** keep the the original unfiltered data in the background so that it is easier to evaluate the cleaning
+- **Next steps:** include 5 people, do the cleaning and show the final product, then calculate hourly averages and repeat the week1_summary code
+
+
+
