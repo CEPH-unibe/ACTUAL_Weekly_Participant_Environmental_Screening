@@ -23,6 +23,7 @@ library(lubridate)
 
 rm(list=ls())
 
+source("MACorWIN.R")
 
 # load REDCap data
 api_url <- "https://redcap.mrc.gm:8443/redcap/api/"
@@ -88,8 +89,19 @@ data_selected <- data |>
   mutate(n_days = round(difftime(endtime, starttime, units = "days"), digits = 1))
 
 # Save dataset
-# write.csv(data_selected, "../data/redcap_data.csv", row.names = FALSE)
-write.csv(data_selected, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv")
+if(MACorWIN == 0){
+  
+  write.csv(data_selected, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv")
+  
+} else {
+  
+  write.csv(data_selected, "Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv")
+  
+}
+
+
+
+
 
 # filtering data set with the pvl log times
 data_pvl <- data |>
@@ -108,5 +120,15 @@ data_pvl <- data |>
 
 
 # Save dataset
-# write.csv(data_pvl, "../data/redcap_pvl.csv", row.names = FALSE)
-write.csv(data_pvl, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv")
+if(MACorWIN == 0){
+  
+  write.csv(data_pvl, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv")
+  
+} else {
+  
+  write.csv(data_pvl, "Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv")
+  
+}
+
+
+

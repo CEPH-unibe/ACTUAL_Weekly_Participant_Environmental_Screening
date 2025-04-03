@@ -60,10 +60,23 @@ server <- function(input, output, session) {
       filter(uid == selected_uid) |>
       pull(redcap_event_name)
     
-    # create the file path based on UID and redcap_event_name to the data to be plotted
-    file_path <- paste0("~/SynologyDrive/Participants/", selected_uid, "/", 
-                        gsub("_", "", redcap_event)
-                        , "/")
+    
+    if(MACorWIN == 0){
+      
+      # create the file path based on UID and redcap_event_name to the data to be plotted
+      file_path <- paste0("~/SynologyDrive/Participants/", selected_uid, "/", 
+                          gsub("_", "", redcap_event)
+                          , "/")
+      
+    } else {
+      
+      # create the file path based on UID and redcap_event_name to the data to be plotted
+      file_path <- paste0(Sys.getenv("HOME"), "/SynologyDrive/Participants/", selected_uid, "/", 
+                          gsub("_", "", redcap_event)
+                          , "/")
+      
+    }
+
     
     # output the file path to the UI
     output$file_path <- renderText({

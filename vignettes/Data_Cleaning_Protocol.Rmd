@@ -12,6 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(dplyr); library(tidyverse); library(ggplot2); library(grid); library(gridExtra)
 library(readxl);library(knitr);library(lubridate); library(readr);library(zoo);library(fuzzyjoin)
 
+source("../MACorWIN.R")
 rm(list = ls())
 ```
 
@@ -36,10 +37,20 @@ The steps are the following with their relevance indicated with * (in my opinion
 
 
 ```{r data, message=FALSE, warning=FALSE, echo=FALSE}
-# uncleaned but selected by pvl
-data = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_minute_data_unclean.csv") |>
-  filter(uid %in% c("ACT001D", "ACT014F", "ACT032V")) |>
-  mutate(Variable = str_replace(Variable, "_NS", "NS"))
+if(MACorWIN == 0){
+  # uncleaned but selected by pvl
+  data = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_minute_data_unclean.csv") |>
+    filter(uid %in% c("ACT001D", "ACT014F", "ACT032V")) |>
+    mutate(Variable = str_replace(Variable, "_NS", "NS"))
+  
+  } else {
+    
+    # uncleaned but selected by pvl
+    data = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_minute_data_unclean.csv") |>
+      filter(uid %in% c("ACT001D", "ACT014F", "ACT032V")) |>
+      mutate(Variable = str_replace(Variable, "_NS", "NS"))
+}
+
 
 # house data
 data_H <- data |>

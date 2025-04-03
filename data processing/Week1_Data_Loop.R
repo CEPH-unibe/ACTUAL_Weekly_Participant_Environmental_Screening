@@ -10,21 +10,46 @@ library(lubridate);library(stringr);library(ggplot2);library(gridExtra); library
 
 
 
+if(MACorWIN == 0){
+  
+  # REDCap for uids and start and end times
+  redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
+    dplyr::mutate(starttime = ymd_hms(starttime),
+                  endtime   = ymd_hms(endtime),
+                  redcap_event_name = substr(redcap_event_name, 13,18))
+  
+  # REDCap for exclusion of pvls
+  redcap_pvl = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv") |>
+    dplyr::mutate(redcap_event_name = substr(redcap_event_name, 13,18))
+  
+  data_full <- data.frame(uid      = "ACT",
+                          datetime = redcap$starttime[1],
+                          Value = 120,
+                          Variable = "IBX")
+  
+} else {
+  
+  # REDCap for uids and start and end times
+  redcap = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
+    dplyr::mutate(starttime = ymd_hms(starttime),
+                  endtime   = ymd_hms(endtime),
+                  redcap_event_name = substr(redcap_event_name, 13,18))
+  
+  # REDCap for exclusion of pvls
+  redcap_pvl = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv") |>
+    dplyr::mutate(redcap_event_name = substr(redcap_event_name, 13,18))
+  
+  data_full <- data.frame(uid      = "ACT",
+                          datetime = redcap$starttime[1],
+                          Value = 120,
+                          Variable = "IBX")
+  
+}
 
-# REDCap for uids and start and end times
-redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
-  dplyr::mutate(starttime = ymd_hms(starttime),
-                endtime   = ymd_hms(endtime),
-                redcap_event_name = substr(redcap_event_name, 13,18))
 
-# REDCap for exclusion of pvls
-redcap_pvl = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv") |>
-  dplyr::mutate(redcap_event_name = substr(redcap_event_name, 13,18))
 
-data_full <- data.frame(uid      = "ACT",
-                        datetime = redcap$starttime[1],
-                        Value = 120,
-                        Variable = "IBX")
+
+
 
 indicators <- data.frame(place = c("IBH", "IBH", "IBT", "IBW", "IBW", ""),
                          variable = c("HUM", "TEMP", "TEMP", "HUM", "TEMP", "NS"))
@@ -34,9 +59,13 @@ indicators <- data.frame(place = c("IBH", "IBH", "IBT", "IBW", "IBW", ""),
 # loop through uids
 for (uid in unique(redcap$uid)) {
   
+  if(MACorWIN == 0){
   # extract all the files for every uid
   files_all <- list.files(paste0("~/SynologyDrive/Participants/", uid, "/week1/"), full.names = TRUE)  
-  
+  } else {
+    files_all <- list.files(paste0(Sys.getenv("HOME"), "/SynologyDrive/Participants/", uid, "/week1/"), full.names = TRUE)  
+  }
+    
   # only continue if the folder is not emty
   if (length(files_all) > 0) {
     
@@ -126,8 +155,18 @@ for (uid in unique(redcap$uid)) {
 }
 
 
-# write the data to csv 
-write_csv(data_full, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_minute_data_unclean.csv")
+
+if(MACorWIN == 0){
+  # write the data to csv 
+  write_csv(data_full, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_minute_data_unclean.csv")
+  
+  
+} else {
+  
+  # write the data to csv 
+  write_csv(data_full, "Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_minute_data_unclean.csv")
+  
+}
 
 
 # hourly averages
@@ -164,11 +203,20 @@ data_combined <- data_H %>%
   full_join(data_N %>% select(id_time, NS = Value_avg), by = "id_time")
 
 
-# write the data to csv 
-write_csv(data_combined, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_hourly_data_unclean.csv")
 
-
-
+if(MACorWIN == 0){
+  
+  # write the data to csv 
+  write_csv(data_combined, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_hourly_data_unclean.csv")
+  
+  
+} else {
+  
+  # write the data to csv 
+  write_csv(data_combined, "Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_hourly_data_unclean.csv")
+  
+  
+}
 
 
 

@@ -15,7 +15,7 @@ rm(list=ls())
 
 library(readr);library(tidyr);library(dplyr);library(readxl);library(knitr)
 library(lubridate);library(stringr);library(ggplot2);library(gridExtra); library(grid)
-
+source("MACorWIN.R")
 
 
 ```
@@ -24,15 +24,38 @@ library(lubridate);library(stringr);library(ggplot2);library(gridExtra); library
 This report summarizes the variables humidity and temperature measure in the individuals house (IBH_HUM, IBH_TEMP), the humidity and temperature detected by worn necklaces (IBW_HUM, IBW_TEMP), the temperature of the device taped to the skin (IBT_TEMP) and the noise inside the individuals house (NS). The data for this report was cut by the observation period and the data taken inside the PVLs was excluded from calculating the hourly averages.
 
 ```{r data raw, echo = FALSE, warning=FALSE, message=FALSE}
-# REDCap for uids and cutting the data
-redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
-  dplyr::mutate(starttime = ymd_hms(starttime),
-                endtime   = ymd_hms(endtime),
-                redcap_event_name = substr(redcap_event_name, 13,18))
+if(MACorWIN == 0){
+  
+  # REDCap for uids and cutting the data
+  redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
+    dplyr::mutate(starttime = ymd_hms(starttime),
+                  endtime   = ymd_hms(endtime),
+                  redcap_event_name = substr(redcap_event_name, 13,18))
+  
+  # hourly summarized data
+  hourly_data = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_hourly_data_unclean.csv") |>
+    mutate(hourly = format(hour, "%H"))
+  
+  } else {
+    
+      # REDCap for uids and cutting the data
+  redcap = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
+    dplyr::mutate(starttime = ymd_hms(starttime),
+                  endtime   = ymd_hms(endtime),
+                  redcap_event_name = substr(redcap_event_name, 13,18))
+  
+  # hourly summarized data
+  hourly_data = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_hourly_data_unclean.csv") |>
+    mutate(hourly = format(hour, "%H"))
+}
 
-# hourly summarized data
-hourly_data = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_hourly_data_unclean.csv") |>
-  mutate(hourly = format(hour, "%H"))
+
+
+
+
+
+
+
 
 diurnal_cycle <- hourly_data |>
   group_by(hourly) |>

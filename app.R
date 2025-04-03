@@ -12,11 +12,25 @@ library(shiny);library(readr);library(tidyr);library(dplyr);library(readxl)
 library(lubridate);library(stringr);library(ggplot2);library(pdftools)
 library(gridExtra); library(grid)
 
+source("MACorWIN.R")
+
 # load cleaned recap data locally
-redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
-  dplyr::mutate(starttime = ymd_hms(starttime),
-                endtime   = ymd_hms(endtime),
-                redcap_event_name = substr(redcap_event_name, 13,18))
+if(MACorWIN == 0){
+  
+  redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
+    dplyr::mutate(starttime = ymd_hms(starttime),
+                  endtime   = ymd_hms(endtime),
+                  redcap_event_name = substr(redcap_event_name, 13,18))
+  
+} else {
+  
+  redcap = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
+    dplyr::mutate(starttime = ymd_hms(starttime),
+                  endtime   = ymd_hms(endtime),
+                  redcap_event_name = substr(redcap_event_name, 13,18))
+  
+}
+
 # test
   
 # functions
