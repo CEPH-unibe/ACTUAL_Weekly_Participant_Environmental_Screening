@@ -768,6 +768,15 @@ The following methods were less suitable because..
 
 <br>
 
+### Feedback from Apolline and Lis
+
+- **Study design limitation:** only exclude data from PVLs if the corresponding device has been charged/changed
+- **Physically plausible:** lower threshold for worn temperature -> below 10 °C, threshold for taped temperature IQR
+- **Variability:** flag only values if 3 consecutive values have exceeded the threshold
+- **Sequence:** not useful
+
+- **Final Plot:** keep the the original unfiltered data in the background so that it is easier to evaluate the cleaning
+- **Next steps:** include 5 people, do the cleaning and show the final product, then calculate hourly averages and repeat the week1_summary code
 
 
 
