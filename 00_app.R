@@ -37,8 +37,8 @@ if(MACorWIN == 0){
 source("functions.R")
 
 # load user interface and server
-source("ui.R")
-source("server.R")
+source("00_ui.R")
+source("00_server.R")
 
 
 # run the app
