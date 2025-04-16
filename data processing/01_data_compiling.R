@@ -1,27 +1,42 @@
+################################################################################
+#   Compiling of a specific week of observations
+
+
+# in this file I loop through a specific week of obsevrations (1-4) 
+# and save all the datasets below each other which have the columns:
+#   uid (ACT001W), timestamp, value (30.5) and variable IBH_TEMP
+
 
 rm(list=ls())
 
 
+# for handling file paths and different operating systems
 source("functions.R")
+source("MACorWIN.R")
 
+# libraries
 library(readr);library(tidyr);library(dplyr);library(readxl)
 library(lubridate);library(stringr);library(ggplot2);library(gridExtra); library(grid)
 
+# specify the week to compile (needs to match naming convention on synology)
+week_indicator = "week_1"
 
-source("MACorWIN.R")
 
+# LOAD DATA
+#---- 
+
+# load redcap from CCH
 if(MACorWIN == 0){
-  
   # REDCap for uids and start and end times
   redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
     dplyr::mutate(starttime = ymd_hms(starttime),
                   endtime   = ymd_hms(endtime),
-                  redcap_event_name = substr(redcap_event_name, 13,18))
-  
+                  redcap_event_name = substr(redcap_event_name, 13,18)) |>
+    filter(redcap_event_name == week_indicator)
   # REDCap for exclusion of pvls
   redcap_pvl = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv") |>
-    dplyr::mutate(redcap_event_name = substr(redcap_event_name, 13,18))
-
+    dplyr::mutate(redcap_event_name = substr(redcap_event_name, 13,18))|>
+    filter(redcap_event_name == week_indicator)
   
 } else {
   
@@ -29,35 +44,44 @@ if(MACorWIN == 0){
   redcap = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
     dplyr::mutate(starttime = ymd_hms(starttime),
                   endtime   = ymd_hms(endtime),
-                  redcap_event_name = substr(redcap_event_name, 13,18))
-  
+                  redcap_event_name = substr(redcap_event_name, 13,18))|>
+    filter(redcap_event_name == week_indicator)
   # REDCap for exclusion of pvls
   redcap_pvl = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv") |>
-    dplyr::mutate(redcap_event_name = substr(redcap_event_name, 13,18))
-  
-
-  
+    dplyr::mutate(redcap_event_name = substr(redcap_event_name, 13,18))|>
+    filter(redcap_event_name == week_indicator)
 }
 
 
+#---- 
 
+
+# PREAMBLE FOR LOOPING
+#---- 
+# reate "emtpy" data.frame to be filled
 data_full <- data.frame(uid      = "ACT",
                         datetime = redcap$starttime[1],
                         Value = 120,
                         Variable = "IBX")
 
-
+# substrings to call every iButton and noise file
 indicators <- data.frame(place = c("IBH", "IBH", "IBT", "IBW", "IBW", ""),
                          variable = c("HUM", "TEMP", "TEMP", "HUM", "TEMP", "NS"))
+#---- 
 
 
 
-# loop through uids
+# FOR LOOP COMPILING
+#----
+
+
+# loop through unique uids
 for (uid in unique(redcap$uid)) {
+  print(uid)
   
   if(MACorWIN == 0){
-  # extract all the files for every uid
-  files_all <- list.files(paste0("~/SynologyDrive/Participants/", uid, "/week1/"), full.names = TRUE)  
+    # extract all the files for every uid
+    files_all <- list.files(paste0("~/SynologyDrive/Participants/", uid, "/week1/"), full.names = TRUE)  
   } else {
     files_all <- list.files(paste0(Sys.getenv("HOME"), "/SynologyDrive/Participants/", uid, "/week1/"), full.names = TRUE)  
   }
@@ -101,14 +125,29 @@ for (uid in unique(redcap$uid)) {
             # find the row number where "Date" and "Time" are located
             header_row <- which(data[, 1] == "Date" & data[, 2] == "Time" )
             
-            data <- read_excel(file, skip = header_row) |>
-              dplyr::mutate(datetime = ymd_hms(paste(Date, Time)),
-                            Value = as.numeric(Value),
-                            uid = uid,
-                            Variable = paste0(place,"_",variable)) |>
-              select(uid, datetime, Value, Variable)
+            # keep emtly data files out
+            if(length(header_row) != 0){
+              data <- read_excel(file, skip = header_row) |>
+                dplyr::mutate(datetime = ymd_hms(paste(Date, Time)),
+                              Value = as.numeric(Value),
+                              uid = uid,
+                              Variable = paste0(place,"_",variable)) |>
+                select(uid, datetime, Value, Variable)
+              
+              # exclude data before/after the pvl's
+              start_time <- redcap$starttime[redcap$uid == uid]
+              end_time <- redcap$endtime[redcap$uid == uid]
+              
+              data <- data |>
+                filter(datetime >= start_time & datetime <= end_time)
+              
+              # assign to the right column based on datetime
+              data_full <- rbind(data_full, data) 
+            }
+            
+            
+            
           } else {
-            # print("HALLO")
             
             data <- read.delim(file, skip = 2, header = TRUE)  
             
@@ -118,62 +157,55 @@ for (uid in unique(redcap$uid)) {
               dplyr::mutate(uid = uid,
                             Variable = paste0(place,"_",variable)) |>
               select(uid, datetime, Value, Variable)
+            
+            # exclude data before/after the pvl's
+            start_time <- redcap$starttime[redcap$uid == uid]
+            end_time <- redcap$endtime[redcap$uid == uid]
+            
+            data <- data |>
+              filter(datetime >= start_time & datetime <= end_time)
+            
+            # assign to the right column based on datetime
+            data_full <- rbind(data_full, data) 
           }
           
-          # exclude data before/after the pvl's
-          start_time <- redcap$starttime[redcap$uid == uid]
-          end_time <- redcap$endtime[redcap$uid == uid]
-          
-          data <- data |>
-            filter(datetime >= start_time & datetime <= end_time)
-          
-          # # exclude data during pvls
-          # redcap_subset <- redcap_pvl[redcap_pvl$uid == uid,]
-          # 
-          # for(i in 2:(nrow(redcap_subset)-1)){
-          #   
-          #   # set values during pvls to na
-          #   data <- data |>
-          #     mutate(across(Value, 
-          #       ~ if_else(datetime >= redcap_subset$pvl_start[i] & datetime <= redcap_subset$pvl_end[i], NA, .x)
-          #     ))  
-          #   
-          #   
-          # }
+
           
           
-          # assign to the right column based on datetime
-          data_full <- rbind(data_full, data) 
+          # CLEANING HAPPENS HERE
+
+          
+
         }
       } 
     }
   }
 }
+#----
 
+# SAVE THE DATA 
+#----
 
-
+# save the minute data
 if(MACorWIN == 0){
   # write the data to csv 
   write_csv(data_full, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_minute_data_unclean.csv")
-  
-  
+  write_csv(data_full, "/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Participants/week1_minute_data_unclean.csv")
 } else {
-  
   # write the data to csv 
   write_csv(data_full, "Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_minute_data_unclean.csv")
-  
+  write_csv(data_full, "Y:/CCH/Actual_Project/data-raw/Participant/week1_minute_data_unclean.csv")
 }
 
 
-# hourly averages
-# Calculate hourly averages
+# create hourly averages
 data_hourly <- data_full %>%
   mutate(hour = floor_date(ymd_hms(datetime), "hour")) %>%  # Round datetime to the nearest hour
   group_by(uid, hour, Variable) %>%               # Group by UID, hour, and Variable
-  summarise(Value_avg = mean(Value, na.rm = TRUE), .groups = "drop")  # Calculate mean
+  summarise(Value_avg = mean(Value, na.rm = TRUE), .groups = "drop")  # Calculate hourly mean
 
 
-# unique files with hourly averages
+# unique data.frames with hourly averages
 data_H <- data_hourly |>
   filter(Variable == "IBH_HUM" | Variable == "IBH_TEMP") |>
   pivot_wider(names_from = Variable, values_from = Value_avg) |>
@@ -201,21 +233,19 @@ data_combined <- data_H %>%
 
 
 if(MACorWIN == 0){
-  
   # write the data to csv 
   write_csv(data_combined, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_hourly_data_unclean.csv")
-  
-  
+  write_csv(data_combined, "/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Participants/week1_hourly_data_unclean.csv")
 } else {
   
   # write the data to csv 
   write_csv(data_combined, "Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_hourly_data_unclean.csv")
-  
-  
+  write_csv(data_combined, "Y:/CCH/Actual_Project/data-raw/Participants/week1_hourly_data_unclean.csv")
 }
 
 
 
+#----
 
 
 
