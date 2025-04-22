@@ -36,7 +36,9 @@ if(MACorWIN == 0){
 # select redcap data 
 redcap <- redcap |> 
   select(uid, redcap_event_name, pvl_start, pvl_end, starts_with("pvl_ib")) |>
-  drop_na(pvl_start)
+  drop_na(pvl_start) |>
+  filter(redcap_event_name == "study_visit_week_1_arm_1") |>
+  filter(!(uid %in% c("ACT029U", "ACT034X", "ACT045O")))
 
 # house data
 data_H <- data |>
@@ -70,6 +72,7 @@ data_N <- data |>
 
 
 # CLEANING
+#----
 # 1. PVL-VISITS
 # First, data has to be excluded that was taken outside the observation window
 # and during personal visit log times if the devices were changed.
@@ -78,7 +81,7 @@ data_N <- data |>
 
 # loop through uids
 for(uids in unique(redcap$uid)){
-  
+  # print(uids)
   redcap_subset <- redcap[redcap$uid == uids,]
   
   # loop through pvl visits
@@ -172,25 +175,112 @@ data_T <- data_T |>
 # and indicate the the device was not worn. We use the moving standard deviation of 3 left aligned 
 # humidity values. As an additional measure to prevent filtering out reasonable values, we filter 
 # only measurements if the standard deviation has been too low for 4 consecutive measurements. 
-thrsh = 0.75
+
+# this treshold was adjusted for more severe filtering because we introduce some of the sporadic non filtered data back
+# into the cleaned data through the hourly averaging
+thrsh = 1.6
 
 # Worn
 data_W <- data_W |>
   mutate(IBW_HUM_thrsh = if_else(IBW_HUM_MSD < thrsh, 1, 0),
-         IBW_HUM_MA_thrsh = rollmean(IBW_HUM_thrsh, k = 4, fill = NA, align = "left"),
+         IBW_HUM_MA_thrsh = rollmean(IBW_HUM_thrsh, k = 2, fill = NA, align = "left"),
          IBW_TEMP = if_else(IBW_HUM_MA_thrsh == 1, NA, IBW_TEMP),
          IBW_HUM = if_else(IBW_HUM_MA_thrsh == 1, NA, IBW_HUM))
+
+
+
+
+
+# CBIND AND SAVE DATA
+#----
+
+# create time data based on redcap start and end time for later merging
+datetime_series <- data.frame(datetime = ymd_hms("2099-01-01 09:00:00"),
+                              uid = "XXX")
+participants = unique(redcap$uid)
+
+for(uid in unique(redcap$uid)){
+  print(uid)
+  
+  redcap_subset = redcap[redcap$uid == uid,]
+  
+  df_timeseries = data.frame(datetime = seq(from = floor_date(min(ymd_hms(redcap_subset$pvl_end), na.rm = TRUE), "hour"), to = floor_date(max(ymd_hms(redcap_subset$pvl_start), na.rm = TRUE), "hour"), by = "hour"))
+  
+  df_timeseries$uid = rep(uid, nrow(df_timeseries))
+  
+  datetime_series = rbind(datetime_series, df_timeseries)
+}
+  
+
+datetime_series <- datetime_series |>
+  filter(uid != "XXX") |>
+  mutate(uid_time = paste0(uid, datetime))
+
+# datetime_series <- data_W |>
+#   mutate(datetime_hourly = floor_date(ymd_hms(datetime), "hour"),
+#          uid_time = paste0(uid, datetime_hourly)) |>
+#   select(uid, uid_time, datetime_hourly) |>
+#   distinct(uid, datetime_hourly, uid_time)
+
+
+# create hourly averages and then cbind all variables
+data_H_hourly <- data_H |>
+  mutate(datetime_hourly = floor_date(ymd_hms(datetime), "hour")) |>
+  group_by(uid, datetime_hourly) |>
+  summarise(IBH_HUM = mean(IBH_HUM, na.rm = TRUE),
+            IBH_TEMP = mean(IBH_TEMP, na.rm = TRUE),
+            .groups = "drop")  |>
+  mutate(uid_time = paste0(uid, datetime_hourly)) 
+
+data_W_hourly <- data_W |>
+  mutate(datetime_hourly = floor_date(ymd_hms(datetime), "hour")) |>
+  group_by(uid, datetime_hourly) |>
+  summarise(IBW_HUM = mean(IBW_HUM, na.rm = TRUE),
+            IBW_TEMP = mean(IBW_TEMP, na.rm = TRUE),
+            .groups = "drop") |>
+  mutate(uid_time = paste0(uid, datetime_hourly))
+
+data_T_hourly <- data_T |>
+  mutate(datetime_hourly = floor_date(ymd_hms(datetime), "hour")) |>
+  group_by(uid, datetime_hourly) |>
+  summarise(IBT_TEMP = mean(IBT_TEMP, na.rm = TRUE),
+            .groups = "drop") |>
+  mutate(uid_time = paste0(uid, datetime_hourly))
+
+data_N_hourly <- data_N |>
+  mutate(datetime_hourly = floor_date(ymd_hms(datetime), "hour")) |>
+  group_by(uid, datetime_hourly) |>
+  summarise(NS = 10 * log10(mean(10^(NS / 10), na.rm = TRUE)),
+            .groups = "drop") |>
+  mutate(uid_time = paste0(uid, datetime_hourly))
+
+
+data_combined <- datetime_series |>
+  full_join(data_H_hourly |> select(uid_time, IBH_HUM, IBH_TEMP), by = "uid_time") |>
+  full_join(data_W_hourly |> select(uid_time, IBW_HUM, IBW_TEMP), by = "uid_time") |>
+  full_join(data_T_hourly |> select(uid_time, IBT_TEMP), by = "uid_time") |>
+  full_join(data_N_hourly |> select(uid_time, NS), by = "uid_time") |>
+  filter(!is.na(uid)) |>
+  mutate(across(everything(), ~ ifelse(is.nan(.), NA, .))) |>
+  mutate(datetime = as.POSIXct(datetime, origin = "1970-01-01", tz = "CET") - 3600)
+  
+
+# Save the data on CCH
+
+
+if(MACorWIN == 0){
+  # write the data to csv 
+  write_csv(data_combined, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_hourly_data_clean.csv")
+} else {
+  
+  # write the data to csv 
+  write_csv(data_combined, "Y:/CCH/Actual_Project/data/Participants/week_1/week1_hourly_data_clean.csv")
+}
 
 
 #----
 
 
-# next steps
-
-# 1. create hourly averages and then cbind all variables
-# 2. look at the hourly averages by uid
-# 3. save the data on CCH
-# 4. write the Cleanliness report
 
 
 
@@ -202,6 +292,34 @@ data_W <- data_W |>
 
 
 
+visdat::vis_miss(data_H[,3:4])
+visdat::vis_miss(data_T[,3])
+visdat::vis_miss(data_W[,3:4])
+
+
+visdat::vis_miss(data_H_hourly[,3:4])
+visdat::vis_miss(data_T_hourly[,3])
+visdat::vis_miss(data_W_hourly[,3:4])
+
+visdat::vis_miss(data_combined[, 4:9])
+
+
+
+par(mfrow=c(1,2))
+plot( data_W$datetime[data_W$uid == "ACT014F"], data_W$IBW_TEMP[data_W$uid == "ACT014F"], type = "p", ylim = c(10,80))
+plot( data_combined$datetime[data_combined$uid == "ACT014F"], data_combined$IBW_TEMP[data_combined$uid == "ACT014F"], type = "p", ylim = c(10,80))
+
+par(mfrow=c(1,2))
+plot( data_W$datetime[data_W$uid == "ACT003C"], data_W$IBW_TEMP[data_W$uid == "ACT003C"], type = "p", ylim = c(10,80))
+plot( data_combined$datetime[data_combined$uid == "ACT003C"], data_combined$IBW_TEMP[data_combined$uid == "ACT003C"], type = "p", ylim = c(10,80))
+
+par(mfrow=c(1,2))
+plot( data_W$datetime[data_W$uid == "ACT032V"], data_W$IBW_TEMP[data_W$uid == "ACT032V"], type = "p", ylim = c(10,80))
+plot( data_combined$datetime[data_combined$uid == "ACT032V"], data_combined$IBW_TEMP[data_combined$uid == "ACT032V"], type = "p", ylim = c(10,80))
+
+par(mfrow=c(1,2))
+plot( data_T$datetime[data_T$uid == "ACT032V"], data_T$IBT_TEMP[data_T$uid == "ACT032V"], type = "p", ylim = c(24,36))
+plot( data_combined$datetime[data_combined$uid == "ACT032V"], data_combined$IBT_TEMP[data_combined$uid == "ACT032V"], type = "p", ylim = c(24,36))
 
 
 
