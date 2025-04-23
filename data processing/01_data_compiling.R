@@ -32,7 +32,8 @@ if(MACorWIN == 0){
     dplyr::mutate(starttime = ymd_hms(starttime),
                   endtime   = ymd_hms(endtime),
                   redcap_event_name = substr(redcap_event_name, 13,18)) |>
-    filter(redcap_event_name == week_indicator)
+    filter(redcap_event_name == week_indicator)|>
+    filter(!(uid %in% c("ACT029U", "ACT034X", "ACT045O")))
   # REDCap for exclusion of pvls
   redcap_pvl = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv") |>
     dplyr::mutate(redcap_event_name = substr(redcap_event_name, 13,18))|>
@@ -45,7 +46,10 @@ if(MACorWIN == 0){
     dplyr::mutate(starttime = ymd_hms(starttime),
                   endtime   = ymd_hms(endtime),
                   redcap_event_name = substr(redcap_event_name, 13,18))|>
-    filter(redcap_event_name == week_indicator)
+    filter(redcap_event_name == week_indicator)|>
+    filter(!(uid %in% c("ACT029U", "ACT034X", "ACT045O")))
+  
+  
   # REDCap for exclusion of pvls
   redcap_pvl = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv") |>
     dplyr::mutate(redcap_event_name = substr(redcap_event_name, 13,18))|>
@@ -225,11 +229,39 @@ data_N <- data_hourly |>
   mutate(id_time = paste0(uid, hour))
 
 # combine hourly datasets.
-data_combined <- data_H %>%
-  full_join(data_W %>% select(id_time, IBW_HUM, IBW_TEMP), by = "id_time") %>%
-  full_join(data_T %>% select(id_time, IBT_TEMP = Value_avg), by = "id_time") %>%
-  full_join(data_N %>% select(id_time, NS = Value_avg), by = "id_time")
+# create time data based on redcap start and end time for later merging
+datetime_series <- data.frame(datetime = ymd_hms("2099-01-01 09:00:00"),
+                              uid = "XXX")
+participants = unique(redcap$uid)
 
+for(uid in unique(redcap$uid)){
+  print(uid)
+  
+  redcap_subset = redcap[redcap$uid == uid,]
+  
+  df_timeseries = data.frame(datetime = seq(from = floor_date(min(ymd_hms(redcap_subset$starttime), na.rm = TRUE), "hour"), to = floor_date(max(ymd_hms(redcap_subset$endtime), na.rm = TRUE), "hour"), by = "hour"))
+  
+  df_timeseries$uid = rep(uid, nrow(df_timeseries))
+  
+  datetime_series = rbind(datetime_series, df_timeseries)
+}
+
+datetime_series <- datetime_series |>
+  filter(uid != "XXX") |>
+  mutate(id_time = paste0(uid, datetime))
+
+# data_combined <- data_H %>%
+#   full_join(data_W %>% select(id_time, IBW_HUM, IBW_TEMP), by = "id_time") %>%
+#   full_join(data_T %>% select(id_time, IBT_TEMP = Value_avg), by = "id_time") %>%
+#   full_join(data_N %>% select(id_time, NS = Value_avg), by = "id_time")
+data_combined <- datetime_series |>
+  full_join(data_H |> select(id_time, IBH_HUM, IBH_TEMP), by = "id_time") |>
+  full_join(data_W |> select(id_time, IBW_HUM, IBW_TEMP), by = "id_time") |>
+  full_join(data_T |> select(id_time, IBT_TEMP = Value_avg), by = "id_time") |>
+  full_join(data_N |> select(id_time, NS = Value_avg), by = "id_time") |>
+  filter(!is.na(uid)) |>
+  mutate(across(everything(), ~ ifelse(is.nan(.), NA, .))) |>
+  mutate(datetime = as.POSIXct(datetime, origin = "1970-01-01", tz = "CET") - 3600)
 
 
 if(MACorWIN == 0){

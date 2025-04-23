@@ -178,7 +178,7 @@ data_T <- data_T |>
 
 # this treshold was adjusted for more severe filtering because we introduce some of the sporadic non filtered data back
 # into the cleaned data through the hourly averaging
-thrsh = 1.6
+thrsh = 1
 
 # Worn
 data_W <- data_W |>
@@ -288,38 +288,36 @@ if(MACorWIN == 0){
 
 
 
-
-
-
-
-visdat::vis_miss(data_H[,3:4])
-visdat::vis_miss(data_T[,3])
-visdat::vis_miss(data_W[,3:4])
-
-
-visdat::vis_miss(data_H_hourly[,3:4])
-visdat::vis_miss(data_T_hourly[,3])
-visdat::vis_miss(data_W_hourly[,3:4])
-
-visdat::vis_miss(data_combined[, 4:9])
-
-
-
-par(mfrow=c(1,2))
-plot( data_W$datetime[data_W$uid == "ACT014F"], data_W$IBW_TEMP[data_W$uid == "ACT014F"], type = "p", ylim = c(10,80))
-plot( data_combined$datetime[data_combined$uid == "ACT014F"], data_combined$IBW_TEMP[data_combined$uid == "ACT014F"], type = "p", ylim = c(10,80))
-
-par(mfrow=c(1,2))
-plot( data_W$datetime[data_W$uid == "ACT003C"], data_W$IBW_TEMP[data_W$uid == "ACT003C"], type = "p", ylim = c(10,80))
-plot( data_combined$datetime[data_combined$uid == "ACT003C"], data_combined$IBW_TEMP[data_combined$uid == "ACT003C"], type = "p", ylim = c(10,80))
-
-par(mfrow=c(1,2))
-plot( data_W$datetime[data_W$uid == "ACT032V"], data_W$IBW_TEMP[data_W$uid == "ACT032V"], type = "p", ylim = c(10,80))
-plot( data_combined$datetime[data_combined$uid == "ACT032V"], data_combined$IBW_TEMP[data_combined$uid == "ACT032V"], type = "p", ylim = c(10,80))
-
-par(mfrow=c(1,2))
-plot( data_T$datetime[data_T$uid == "ACT032V"], data_T$IBT_TEMP[data_T$uid == "ACT032V"], type = "p", ylim = c(24,36))
-plot( data_combined$datetime[data_combined$uid == "ACT032V"], data_combined$IBT_TEMP[data_combined$uid == "ACT032V"], type = "p", ylim = c(24,36))
-
-
+# visdat::vis_miss(data_H[,3:4])
+# visdat::vis_miss(data_T[,3])
+# visdat::vis_miss(data_W[,3:4])
+# 
+# 
+# visdat::vis_miss(data_H_hourly[,3:4])
+# visdat::vis_miss(data_T_hourly[,3])
+# visdat::vis_miss(data_W_hourly[,3:4])
+# 
+# visdat::vis_miss(data_combined[, 4:9])
+# 
+# 
+# 
+# par(mfrow=c(1,2))
+# plot( data_W$datetime[data_W$uid == "ACT014F"], data_W$IBW_TEMP[data_W$uid == "ACT014F"], type = "p", ylim = c(10,80))
+# plot( data_combined$datetime[data_combined$uid == "ACT014F"], data_combined$IBW_TEMP[data_combined$uid == "ACT014F"], type = "p", ylim = c(10,80))
+# 
+# par(mfrow=c(1,2))
+# plot( data_W$datetime[data_W$uid == "ACT003C"], data_W$IBW_TEMP[data_W$uid == "ACT003C"], type = "p", ylim = c(10,80))
+# plot( data_combined$datetime[data_combined$uid == "ACT003C"], data_combined$IBW_TEMP[data_combined$uid == "ACT003C"], type = "p", ylim = c(10,80))
+# 
+# par(mfrow=c(1,2))
+# plot( data_W$datetime[data_W$uid == "ACT032V"], data_W$IBW_TEMP[data_W$uid == "ACT032V"], type = "p", ylim = c(10,80))
+# plot( data_combined$datetime[data_combined$uid == "ACT032V"], data_combined$IBW_TEMP[data_combined$uid == "ACT032V"], type = "p", ylim = c(10,80))
+# 
+# par(mfrow=c(1,2))
+# plot( data_T$datetime[data_T$uid == "ACT032V"], data_T$IBT_TEMP[data_T$uid == "ACT032V"], type = "p", ylim = c(24,36))
+# plot( data_combined$datetime[data_combined$uid == "ACT032V"], data_combined$IBT_TEMP[data_combined$uid == "ACT032V"], type = "p", ylim = c(24,36))
+# 
+# data_wo_NA <- data_combined |>
+#   drop_na()
+# nrow(data_wo_NA) / nrow(data_combined)
 

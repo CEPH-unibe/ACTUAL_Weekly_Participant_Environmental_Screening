@@ -14,7 +14,6 @@ library(readxl);library(knitr);library(lubridate); library(readr);library(zoo);l
 
 rm(list = ls())
 source("../MACorWIN.R")
-load("/Users/ts24n298/Desktop/App_Trainride.RData")
 ```
 
 ## Data Cleaning Protocol (revised)
@@ -35,13 +34,13 @@ The steps of cleaning after revision are the following:
 4. Variability (variable specific threshold of standard deviation over an extended period of time) **especially important for worn temperature/humidity**
 
 ```{r load redcap, echo = FALSE}
-# if(MACorWIN == 0){
-#   # REDCap for uids and start and end times
-#   redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")
-#   } else {
-#   # REDCap for uids and start and end times
-#   redcap = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv")
-#   }
+if(MACorWIN == 0){
+  # REDCap for uids and start and end times
+  redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")
+  } else {
+  # REDCap for uids and start and end times
+  redcap = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv")
+  }
 
 redcap_pvl <- redcap |>
   select( uid, redcap_event_name, pvl_start, pvl_end,pvl_ibuthouse, pvl_ibutworn, pvl_ibuttaped) |>
