@@ -224,8 +224,17 @@ data_W <- data_hourly |>
   pivot_wider(names_from = Variable, values_from = Value_avg)|>
   mutate(id_time = paste0(uid, hour))
 
-data_N <- data_hourly |>
+# data_N <- data_hourly |>
+#   filter(Variable == "_NS")|>
+#   mutate(id_time = paste0(uid, hour))
+
+
+data_N <- data_full |>
   filter(Variable == "_NS")|>
+  mutate(hour = floor_date(ymd_hms(datetime), "hour")) %>%
+  group_by(uid, hour) |>
+  summarise(NS = 10 * log10(mean(10^(Value / 10), na.rm = TRUE)),
+                        .groups = "drop") |>
   mutate(id_time = paste0(uid, hour))
 
 # combine hourly datasets.
@@ -258,7 +267,7 @@ data_combined <- datetime_series |>
   full_join(data_H |> select(id_time, IBH_HUM, IBH_TEMP), by = "id_time") |>
   full_join(data_W |> select(id_time, IBW_HUM, IBW_TEMP), by = "id_time") |>
   full_join(data_T |> select(id_time, IBT_TEMP = Value_avg), by = "id_time") |>
-  full_join(data_N |> select(id_time, NS = Value_avg), by = "id_time") |>
+  full_join(data_N |> select(id_time, NS = NS), by = "id_time") |>
   filter(!is.na(uid)) |>
   mutate(across(everything(), ~ ifelse(is.nan(.), NA, .))) |>
   mutate(datetime = as.POSIXct(datetime, origin = "1970-01-01", tz = "CET") - 3600)
