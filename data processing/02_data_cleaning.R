@@ -81,7 +81,7 @@ data_N <- data |>
 
 # loop through uids
 for(uids in unique(redcap$uid)){
-  # print(uids)
+  print(uids)
   redcap_subset <- redcap[redcap$uid == uids,]
   
   # loop through pvl visits

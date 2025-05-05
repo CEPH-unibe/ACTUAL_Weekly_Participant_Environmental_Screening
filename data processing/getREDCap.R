@@ -104,11 +104,11 @@ data_selected <- data |>
 if(MACorWIN == 0){
   
   write.csv(data_selected, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv")
-  
+  print("data uploaded")
 } else {
   
   write.csv(data_selected, "Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv")
-  
+  print("data uploaded")
 }
 
 
@@ -135,11 +135,11 @@ data_pvl <- data |>
 if(MACorWIN == 0){
   
   write.csv(data_pvl, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv")
-  
+  print("data uploaded")
 } else {
   
   write.csv(data_pvl, "Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv")
-  
+  print("data uploaded")
 }
 
 

@@ -33,7 +33,7 @@ The steps of cleaning after revision are the following:
 3. Physically plausible (temperature < -10 °C etc) **especially important for taped temperature filtering**
 4. Variability (variable specific threshold of standard deviation over an extended period of time) **especially important for worn temperature/humidity**
 
-```{r load redcap, echo = FALSE}
+```{r load redcap, echo = FALSE, warning=FALSE, message=FALSE}
 if(MACorWIN == 0){
   # REDCap for uids and start and end times
   redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")
@@ -52,19 +52,19 @@ redcap_pvl <- redcap |>
 
 ```{r data, message=FALSE, warning=FALSE, echo=FALSE}
 
-# if(MACorWIN == 0){
-#   # uncleaned but selected by pvl
-#   data = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_minute_data_unclean.csv") |>
-#     filter(uid %in% c("ACT001D", "ACT003C", "ACT004S", "ACT014F", "ACT032V")) |>
-#     mutate(Variable = str_replace(Variable, "_NS", "NS"))
-#   
-#   } else {
-#     
-#     # uncleaned but selected by pvl
-#     data = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_minute_data_unclean.csv") |>
-#       filter(uid %in% c("ACT001D", "ACT003C", "ACT004S", "ACT014F", "ACT032V")) |>
-#       mutate(Variable = str_replace(Variable, "_NS", "NS"))
-# }
+if(MACorWIN == 0){
+  # uncleaned but selected by pvl
+  data = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_minute_data_unclean.csv") |>
+    filter(uid %in% c("ACT001D", "ACT003C", "ACT004S", "ACT014F", "ACT032V")) |>
+    mutate(Variable = str_replace(Variable, "_NS", "NS"))
+
+  } else {
+
+    # uncleaned but selected by pvl
+    data = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_minute_data_unclean.csv") |>
+      filter(uid %in% c("ACT001D", "ACT003C", "ACT004S", "ACT014F", "ACT032V")) |>
+      mutate(Variable = str_replace(Variable, "_NS", "NS"))
+}
 
 
 # house data
@@ -124,7 +124,7 @@ First, data has to be excluded that was taken outside the observation window  an
 
 
 
-```{r filter for device changes, echo = FALSE}
+```{r filter for device changes, echo = FALSE, warning=FALSE, message=FALSE}
 # loop through uids
 for(uids in unique(redcap_pvl$uid)){
 
@@ -372,19 +372,19 @@ for (uids in unique(data$uid)) {
 
 ### 4. Variability 
 
-The variability between variables and devices differs significantly (eg. humidity house and worn). Because we are interested in stress experienced by the individuals, it is important to not filter out extreme but realistic conditions as these represent the largest stress impact. However we do want to filter out worn measurements that resemble the variance of the house measurements and indicate the the device was not worn. We use the moving standard deviation of 3 left aligned humidity values. As an additional measure to prevent filtering out reasonable values, we filter only measurements if the standard deviation has been too low for 4 consecutive measurements. 
+The variability between variables and devices differs significantly (eg. humidity house and worn). Because we are interested in stress experienced by the individuals, it is important to not filter out extreme but realistic conditions as these represent the largest stress impact. However we do want to filter out worn measurements that resemble the variance of the house measurements and indicate the the device was not worn. We use the moving standard deviation of 3 left aligned humidity values. As an additional measure to prevent filtering out reasonable values, we filter only measurements if the standard deviation has been too low for 2 consecutive measurements. We initially considered 4 values, however, in the averaging process this low threshold then introduced "wrong" data back into the hourly averages.
 
 1. Worn: threshold for humidity sd: x
 
 ```{r variance}
-x = 0.75
+x = 1
 
 # Worn
 data_W <- data_W |>
   mutate(IBW_TEMP_04_intermediate = if_else(IBW_HUM_MSD < x, 1, 0),
          IBW_HUM_04_intermediate = if_else(IBW_HUM_MSD < x, 1, 0),
-         IBW_TEMP_04 = rollmean(IBW_TEMP_04_intermediate, k = 4, fill = NA, align = "left"),
-         IBW_HUM_04 = rollmean(IBW_HUM_04_intermediate, k = 4, fill = NA, align = "left"))
+         IBW_TEMP_04 = rollmean(IBW_TEMP_04_intermediate, k = 2, fill = NA, align = "left"),
+         IBW_HUM_04 = rollmean(IBW_HUM_04_intermediate, k = 2, fill = NA, align = "left"))
 ```
 
 ```{r variance plot, fig.align='center', fig.width=12, fig.height=5, echo=FALSE, message=FALSE, warning=FALSE }
