@@ -1,0 +1,284 @@
+---
+title: "GGIR"
+author: "Tino Schneidewind"
+date: "2025-05-05"
+output: 
+  html_document: 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libs, echo=FALSE, message=FALSE, warning=FALSE}
+library(dplyr); library(ggplot2);library(ggnewscale);library(viridis);library(kableExtra);library(lubridate)
+
+```
+
+### Aim of this document
+
+In this file I will present how to use the package GGIR to extract from Actigraph measurements the **validity, the sleep period and the activity**.
+
+#### 1. Run GGIR
+
+First we run GGIR. for this we need to define a directory where our RAW.csv file is located and a directory where our output will go. Running this for a new RAW.csv file takes approximately 15 minutes, therefore, we skip this here.
+
+```{r ggir}
+# GGIR(
+#   mode = c(1, 2, 3, 4, 5),              # Load data + do wear time detection
+#   datadir = datadir,                    # Filepath where the RAW.csv file is stored
+#   outputdir = outputdir,                # Where to save results
+# 
+#   dataformat = "csv",                   # For raw acceleration in CSV format
+#   csv.format = "actilife",              # Tell GGIR it's an ActiLife CSV
+#   csv.acc.col.acc = 2:4,                # Adjust if needed: columns for X, Y, Z
+#   csv.header = TRUE,                    # Set TRUE if your file has headers
+#   csv.time.col = 1,                     # Usually first column is timestamp
+#   csv.IDformat = 3,                     # Use filename to identify subject
+#   csv.col.names = TRUE,                 # Use column names from CSV
+# 
+#   do.cal = TRUE,                        # Calibration step (recommended)
+#   do.enmo = TRUE,                       # Calculate ENMO for wear detection (based on movement)
+#   strategy = 1,                         # Wear time detection strategy 
+# 
+#   do.part3.sleep.analysis = TRUE,       # Enable sleep analysis!
+# 
+#   epochvalues2csv = TRUE,               # Save epoch summary
+#   epochvalues2csv_minutes = 60,         # Save as hourly averages
+# 
+#   save_ms5rawlevels = TRUE,              # Save QC wear-time data
+#   save_ms5raw_format = "csv",
+# 
+#   part5_agg2_60seconds = TRUE           # aggregating of final time series table
+# )
+```
+
+<br>
+
+#### 2. Load the raw processed data
+
+The output directory includes many different datasets on sleep, activity, and other variables. However, most of them are saved as daily or person summaries. Because we are interested in also validating other data with sub daily intervals, we load here the raw data used to calculate these daily metrics from the /meta folder. From the Step 5 of GGIR, we load the following data that has been summarized to minute intervals.
+
+```{r ggir output}
+load("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/test_tino_withParticipant2/output_raw/meta/ms5.outraw/40_100_400/ACT002R_week1_STM2D48230258 (2024-12-07)RAW_T5A5.RData")
+
+# mdat
+```
+
+
+```{r ggir output dplyr, echo=FALSE}
+mdat <-  mdat |>
+  
+  # unselect duplicate and empty columns
+  select(-timenum, -selfreported) |>
+  
+  # assign correct class
+  mutate(across(c(SleepPeriodTime,sibdetection, invalidepoch, guider, window, class_id), as.factor))
+```
+
+
+The variables of this dataset are the following: 
+
+- timestamp
+- invalidepoch: 0 for valid, 1 for invalid
+- invalid_columns: percentage of invalid data in the current window
+
+- ACC: acceleration, based on the ENMO calculation which is the default in GGIR. This enables the class selection in class_id
+
+- class_id: behavioural class (saved in the folder ms5.outraw), see table 1 
+
+- SleepPeriodTime: 0 for wake, 1 for sleep
+- sibdetection: 1 if sustained inactivity bout was detect, 2 if nap was detected (there are no naps in this example)
+
+- guider: number to indicate what guider type was used, where 1=sleeplog, 2=HDCZA, etc.
+- window: these correspond to which sleeponset-sleeponset window in the recording. So, in a recording of one week you may find window numbers 1, 2, 3, 4, 5 and 6.
+- angle: longitudinal axis 
+
+<br>
+
+```{r table class id, echo=FALSE, warning=FALSE, message=FALSE}
+class_id_df <- data.frame(spt_sleep = c("0", "sleep time period sleeping)"),
+                          spt_wake_IN = c("1", "sleep period time inactive"),
+                          spt_wake_LIG = c("2", "sleep period time wakefullness light"),
+                          spt_wake_MOD = c("3", "sleep period time wakefullness moderate"),
+                          spt_wake_VIG = c("4", "sleep period time vigorous"),
+                          day_IN_unbt = c("5", "day inactive unbouted"),
+                          day_LIG_unbt = c("6", "day light unbouted"),
+                          day_MOD_unbt = c("7", "day moderate unbouted"),
+                          day_VIG_unbt = c("8", "day vigorous unbouted"),
+                          day_MVPA_bts_10 = c("9", "day moderate/vigorous activity more than 10 min"),
+                          day_MVPA_bts_5_10 = c("10", "day moderate/vigorous activity 5-10 min"),
+                          day_MVPA_bts_1_5 = c("11", "day moderate/vigorous activity 1-5 min"),
+                          day_IN_bts_30 = c("12", "day inactive bouts more than 30 min"),
+                          day_IN_bts_20_30 = c("13", "day inactive 20-30 min"),
+                          day_IN_bts_10_20 = c("14", "day inactive 10-20 min"),
+                          day_LIG_bts_10 = c("15", "day light activity more than 10 min"),
+                          day_LIG_bts_5_10 = c("16", "day light activity 5-10 min"),
+                          day_LIG_bts_10 = c("17", "day light activity 1-5 min")
+                          )
+
+class_id_df <- t(class_id_df)
+
+kable(class_id_df, col.names = c("variable", "number", "description"), caption = "Table 1: activity class ID descriptions.")
+
+
+```
+
+<br>
+
+#### 3. Data investigation
+
+
+```{r plots, echo=FALSE, fig.width=14, fig.height=6, fig.align='center'}
+# Example: summarize sleep periods into ranges
+sleep_periods <- mdat %>%
+  group_by(gr = cumsum(c(0, diff(SleepPeriodTime)) != 0)) %>%
+  summarize(
+    SleepPeriodTime = first(SleepPeriodTime),
+    start = min(timestamp),
+    end = max(timestamp)
+  ) %>%
+  filter(SleepPeriodTime == 1)  # Keep only sleep periods
+
+
+# Summarize sibdetection nap periods
+nap_periods <- mdat %>%
+  group_by(gr = cumsum(c(0, diff(sibdetection)) != 0)) %>%
+  summarize(
+    sibdetection = first(sibdetection),
+    start = min(timestamp),
+    end = max(timestamp)
+  ) %>%
+  filter(sibdetection == 2)
+
+ggplot(data = mdat, aes(x = timestamp)) +
+  # Sleep background
+  geom_rect(data = sleep_periods, inherit.aes = FALSE,
+            aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf),
+            fill = "gold", alpha = 0.2) +
+  
+  # Nap background
+  geom_rect(data = nap_periods, inherit.aes = FALSE,
+            aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf),
+            fill = "skyblue", alpha = 0.8) +
+  
+  # Main line plot
+  geom_line(aes(y = ACC), linewidth = 0.5) + 
+  theme_minimal() +
+  labs(title = "Figure 1: Acceleration time series", subtitle = "sleep periods in yellow + nap periods in blue") +
+  
+  # Invalid epoch points
+  geom_point(aes(y = -25, color = factor(invalidepoch)), size = 1) +
+  scale_color_manual(
+    name = "Validity",
+    values = c("0" = "black", "1" = "red2")
+  ) +
+  
+  # New color scale for class_id
+  ggnewscale::new_scale_color() +
+  
+  # Class_id points
+  geom_point(aes(y = -50, color = factor(class_id)), size = 1) +
+  scale_color_viridis_d(
+    name = "Class ID",
+    option = "viridis"
+  )
+
+
+```
+
+
+<br>
+
+#### 4. Data aggregation to hourly values
+
+##### Validity
+
+I dont think it is vital to include as much measurements as possible as data quality seems to be good in the designed observation window (from this one person). Thats why I would suggest apply a fairly high threshold and only include hourly values if we have more than 75% validity in that hour. 
+
+<br>
+
+
+##### Class_ID
+
+I think those should be reassigned to fewer classes before averaging. We have very similar classes like 5, 12, 14 that all basically mean *inactive*. 
+Maybe we should assign the original 17 classes to the following 5 groups:
+
+- inactive sleep (0,1,2)
+- wakefulness sleep (3,4)
+- day inactive (5,12,13,14)
+- day light (6,15,16,17)
+- day moderate/vigorous (7-11)
+
+Aggregating could then be done on based on the most predominant class per hour. 
+
+<br>
+
+##### Binary variables
+
+Those should be aggregated by averaging and rounding to the number. 
+
+
+<br>
+
+```{r aggre, warning=FALSE}
+# reassign classes and create timestamp to group by
+mdat <- mdat |>
+  mutate(
+    sleep_IN = ifelse(class_id %in% c(0,1,2), 1, 0),
+    sleep_WA = ifelse(class_id %in% c(3,4), 1, 0),
+    day_IN = ifelse(class_id %in% c(5,12:14), 1, 0),
+    day_LI = ifelse(class_id %in% c(6,15:17), 1, 0),
+    day_MO = ifelse(class_id %in% c(7:11), 1, 0),
+    
+    timestamp_hour = floor_date(timestamp, unit = "hour")
+  )
+
+# hourly aggregation
+mdat_hour <- mdat |>
+  group_by(timestamp_hour) |>
+  summarize(
+    validity = mean(as.numeric(invalidepoch), na.rm = TRUE) - 1,
+    validity_q = quantile(as.numeric(invalidepoch), .75) - 1,
+    across(c(sleep_IN, sleep_WA, day_IN, day_LI, day_MO, ACC), mean, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  mutate(
+    max_var = c("sleep_IN", "sleep_WA", "day_IN", "day_LI", "day_MO")[
+      max.col(as.data.frame(across(c(sleep_IN, sleep_WA, day_IN, day_LI, day_MO))), ties.method = "first")
+    ],
+    
+    ACC_scaled = (ACC - min(ACC, na.rm = TRUE)) / 
+                   (max(ACC, na.rm = TRUE) - min(ACC, na.rm = TRUE))
+    
+  )
+```
+
+
+```{r aggre plot, echo=FALSE, fig.align='center', fig.height=4, fig.width=14}
+mdat_hour$max_var <- factor(mdat_hour$max_var, levels = unique(mdat_hour$max_var))
+mdat_hour$ACC <- scale(mdat_hour$ACC)
+
+ggplot(mdat_hour, aes(x = timestamp_hour)) +
+  geom_line(aes(y = validity_q, colour = max_var, group = 1), linewidth = 3) + 
+  geom_line(aes(y = ACC_scaled), colour = "black") +
+  scale_colour_manual(values = c(
+    "sleep_IN" = "#a6cee3",  # light blue
+    "sleep_WA" = "#1f78b4",  # medium blue
+    "day_IN"   = "#fdbf6f",  # orange-yellow (transition)
+    "day_LI"   = "#e31a1c",  # bright red
+    "day_MO"   = "#99000d"   # dark red
+  )) + 
+  labs(x = "timestamp", y = "ACC (scaled)", title = "Activity levels of aggregated ACC", subtitle = "1 = invalid, 0 = valid") +
+  theme_minimal()
+
+```
+
+
+<br>
+
+#### Next steps:
+
+- combine these hourly values with HR, Temp, and steps to one data set for all participant combined for the first week? so that we have one hourly averaged accelerometer validated dataset with all variables measured by the Actigraph device.
+
+- can I create subfolders so that I can build a routine to do the GGIR run collectively for all participants. every RAW file needs to be in their own folder. 

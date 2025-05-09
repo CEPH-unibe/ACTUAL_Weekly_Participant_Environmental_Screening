@@ -1,0 +1,253 @@
+---
+title: "Noise_data_preparation"
+author: "Tino Schneidewind"
+date: "2025-05-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Aim of the document
+
+In this RMarkdown I will implement the data preparation of the noise sentry data for the analysis following the steps provided by Apolline Saucy. For this trial, I will utilise only noise data from one participant of the first week (001).
+
+```{r load libs, echo=FALSE, warning=FALSE, message=FALSE, fig.height=4, fig.width=8, fig.align='center'}
+rm(list=ls())
+
+
+# for handling file paths and different operating systems
+source("../functions.R")
+source("../MACorWIN.R")
+
+# libraries
+library(readr);library(tidyr);library(dplyr);library(readxl);library(zoo)
+library(lubridate);library(stringr);library(ggplot2);library(gridExtra); library(grid)
+
+# specify the week to compile (needs to match naming convention on synology)
+week_indicator = "week_1"
+
+
+
+# LOAD DATA
+#---- 
+
+# load redcap from CCH
+if(MACorWIN == 0){
+  
+  # iButton and Noise data
+  data <- read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Participants/week1_minute_data_unclean.csv")
+  
+  # REDCap for uids and start and end times
+  redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")
+  
+} else {
+  
+  # iButton and Noise data
+  data <- read_csv("Y:/CCH/Actual_Project/data-raw/Participants/week1_minute_data_unclean.csv")
+  
+  # REDCap for uids and start and end times
+  redcap = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")
+}
+
+
+# select redcap data 
+redcap <- redcap |> 
+  select(uid, redcap_event_name, pvl_start, pvl_end, starts_with("pvl_ib")) |>
+  drop_na(pvl_start) |>
+  filter(redcap_event_name == "study_visit_week_1_arm_1") |>
+  filter(!(uid %in% c("ACT029U", "ACT034X", "ACT045O")))
+
+redcap_001 <- redcap |>
+  filter(uid == "ACT001D") |>
+  mutate(dow_start = weekdays(pvl_start),
+         dow_end = weekdays(pvl_end))
+
+
+# noise data
+data_N <- data |>
+  mutate(Variable = if_else(Variable == "_NS", "NS", Variable)) |>
+  filter(Variable == "NS")|>
+  pivot_wider(names_from = Variable, values_from = Value)|>
+  mutate(
+    NS_MA = rollmean(NS, k = 8, fill = NA, align = "left"),
+    hour = hour(datetime),
+    dow = wday(datetime, week_start = 1))
+
+
+# noise data for a specific participant
+data_N_001 <- data_N |>
+  filter(uid == "ACT001D") 
+
+head(data_N_001)
+
+ggplot(data_N_001, aes(x = datetime)) +
+  geom_line(aes(y = NS)) +
+  geom_point(aes(y = NS)) +
+  labs(x = "time", y = "NS [dB]", title = "Uncleaned noise data"
+  ) +
+  theme_minimal()
+
+```
+
+<br>
+
+##### 1) Clean the raw data 
+
+as described in [Land Use Regression Modeling of Outdoor Noise Exposure in Informal Settlements in Western Cape, South Africa](https://www.mdpi.com/1660-4601/14/10/1262)
+
+a) restrict to the same weekly period for everyone. Identify start and end times for which everyone is being monitored. Time windows can be discussed based on data availability.
+
+In my opinion, this should be Monday 8am to Friday 8 pm.
+
+```{r 1a}
+data_N_001 <- data_N_001 |>
+  filter(
+    (dow == 1 & hour >= 8) |  # Monday from 8am
+      (dow %in% 2:4) |        # Tuesday to Thursday
+      (dow == 5 & hour <= 20) # Friday up to 8pm
+  )
+```
+
+b)
+Exclude observations with >10% missing data (threshold to discuss depending on data availability)
+**what do we consider an observation?**
+
+c)
+Remove outliers, defined as one-minute noise measurements (=raw data) exceeding the five-day mean by plus or minus three standard deviations.
+
+```{r 1c}
+mean_noise = mean(data_N_001$NS, na.rm = TRUE)
+sd_noise = sd(data_N_001$NS, na.rm = TRUE) * 3
+
+data_N_001 <- data_N_001 |>
+  mutate(
+    NS_outliers = ifelse(NS > mean_noise + sd_noise | NS < mean_noise - sd_noise, TRUE, FALSE)
+  )
+```
+
+```{r 1c plot, echo=FALSE, fig.height=4, fig.width=8, fig.align='center'}
+ggplot(data_N_001, aes(x = datetime)) +
+  geom_line(aes(y = NS)) +
+  geom_point(aes(y = NS, color = as.factor(NS_outliers))) +
+  scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red")) +
+  labs(x = "time", y = "NS [dB]", title = "Uncleaned Noise Data", subtitle = "with outliers", color = "Outlier") +
+  theme_minimal()
+```
+
+
+<br>
+
+##### 2) Calculate noise indicators (long-term) 
+
+A-weighted equivalent sound level variables as described here: [Space-time characterization of community noise and sound sources in Accra, Ghana | Scientific Reports](https://www.nature.com/articles/s41598-021-90454-6#Fig1)
+
+```{r 2}
+data_N_001 <- data_N_001 |>
+  mutate(
+    NS_clean = ifelse(NS_outliers == TRUE, NA, NS)
+  )
+```
+
+a) calculate L_Aeq and intermittency ratios for each site and date of measurement
+
+```{r 2a}
+# total
+L_Aeq_tot = 10 * log10( mean(10^(0.1 * data_N_001$NS_clean), na.rm = TRUE ) ) 
+
+# hourly
+noise_ind_hourly <- data_N_001 |>
+  group_by(dow, hour) |>
+  
+  # A-weighted equivalent continuous hourly sound levels L_Aeq_1h
+  summarize(L_Aeq_1h = 10 * log10( mean(10^(0.1 * NS_clean), na.rm = TRUE ) ),
+            .groups = "drop")
+```
+
+
+```{r 2aplot, echo=FALSE, fig.height=4, fig.width=8, fig.align='center'}
+ggplot(noise_ind_hourly, aes(y = L_Aeq_1h, x = 1:length(L_Aeq_1h))) +
+  geom_line() + 
+  labs(x = "hours since Monday 8 am") +
+  theme_minimal() +
+  lims(y = c(35,75))
+```
+
+
+```{r 2a daily}
+# daily data frame
+noise_ind_daily <- data_N_001 |>
+  group_by(dow) |>
+  
+  summarize(
+    
+    # A-weighted equivalent continuous daily sound levels L_Aeq_24h
+    L_Aeq_24h = 10 * log10( mean(10^(0.1 * NS_clean), na.rm = TRUE ) ),
+    
+    # A-weighted equivalent continuous daytime sound levels between 6-22h L_Aeq_day
+    L_Aeq_day = 10 * log10( mean(10^(0.1 * NS_clean[hour >= 6 & hour < 22]), na.rm = TRUE ) ),
+    
+    # A-weighted equivalent continuous nighttime sound levels 22-6 L_Aeq_night
+    L_Aeq_night = 10 * log10( mean(10^(0.1 * NS_clean[hour < 6 | hour >= 22]), na.rm = TRUE ) ),
+    
+    # Daily intermittency ratio IR_24h
+    IR_24h = (10^(0.1 * L_Aeq_24h) ) / (10^(0.1 * L_Aeq_tot) ) * 100,
+    
+    # daytime intermittency ratio between 6-22 IR_day
+    IR_day = (10^(0.1 * L_Aeq_day) ) / (10^(0.1 * L_Aeq_tot) ) * 100,
+    
+    # nighttime intermittency ratio between 6-22 IR_night
+    IR_night = (10^(0.1 * L_Aeq_night) ) / (10^(0.1 * L_Aeq_tot) ) * 100,
+    
+    # L_den
+    L_den = 10 * log10( (1/24) * 
+                          (12 * 10^( L_Aeq_day /10) +
+                             8 * 10^( (L_Aeq_night + 10 ) /10))),
+    .groups = "drop")
+```
+
+
+```{r 2a daily plots, echo=FALSE, fig.height=3, fig.width=8, fig.align='center'}
+ggplot(data = noise_ind_daily, aes(x = dow)) +
+  geom_line(aes(y = L_Aeq_24h, color = "L_Aeq 24h")) +
+  geom_line(aes(y = L_Aeq_day, color = "L_Aeq day")) +
+  geom_line(aes(y = L_Aeq_night, color = "L_Aeq night"))  +
+  scale_color_manual(values = c("L_Aeq 24h" = "green4", 
+                                "L_Aeq day" = "gold", 
+                                "L_Aeq night" = "grey2")) +
+  theme_minimal() +
+  labs(x = "Day of the week", y = "L_Aeq [dB]", color = "Legend") +
+  lims(y = c(40,70))
+
+
+ggplot(data = noise_ind_daily, aes(x = dow)) +
+  geom_line(aes(y = IR_24h, color = "IR 24h")) +
+  geom_line(aes(y = IR_day, color = "IR day")) +
+  geom_line(aes(y = IR_night, color = "IR night"))  +
+  scale_color_manual(values = c("IR 24h" = "green4", 
+                                "IR day" = "gold", 
+                                "IR night" = "grey2")) +
+  theme_minimal() +
+  labs(x = "Day of the week", 
+       y = "Intermittency ratio [%]", 
+       color = "Legend") +
+  lims(y = c(0, 250))
+```
+
+<br>
+
+
+
+#### Questions:
+
+- exclude observations based on >10% missing data: what is an observation in our case? a whole file meaning a whole participant week?
+- How should I aggregate this and save this? should I compile this for every participant and then save it separately from the iButton data?
+
+```{r data}
+head(noise_ind_daily)
+head(noise_ind_hourly)
+```
+
+
+<br>
