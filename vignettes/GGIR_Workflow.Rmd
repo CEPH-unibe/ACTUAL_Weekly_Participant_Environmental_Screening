@@ -281,4 +281,8 @@ ggplot(mdat_hour, aes(x = timestamp_hour)) +
 
 - combine these hourly values with HR, Temp, and steps to one data set for all participant combined for the first week? so that we have one hourly averaged accelerometer validated dataset with all variables measured by the Actigraph device.
 
-- can I create subfolders so that I can build a routine to do the GGIR run collectively for all participants. every RAW file needs to be in their own folder. 
+- How do we hourly average HR, Cardiac Rythm, Steps  etc?
+
+
+
+<br>
