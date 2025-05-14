@@ -30,7 +30,7 @@ ui <- fluidPage(
       
 
   
-      
+      # text output for the filepath on Synology
       textOutput("file_path"),
       
       br(),

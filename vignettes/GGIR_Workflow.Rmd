@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r libs, echo=FALSE, message=FALSE, warning=FALSE}
-library(dplyr); library(ggplot2);library(ggnewscale);library(viridis);library(kableExtra);library(lubridate)
+library(dplyr); library(ggplot2);library(ggnewscale);library(viridis);library(kableExtra);library(lubridate);library(readr)
 
 ```
 
@@ -59,10 +59,10 @@ First we run GGIR. for this we need to define a directory where our RAW.csv file
 
 The output directory includes many different datasets on sleep, activity, and other variables. However, most of them are saved as daily or person summaries. Because we are interested in also validating other data with sub daily intervals, we load here the raw data used to calculate these daily metrics from the /meta folder. From the Step 5 of GGIR, we load the following data that has been summarized to minute intervals.
 
-```{r ggir output}
-load("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/test_tino_withParticipant2/output_raw/meta/ms5.outraw/40_100_400/ACT002R_week1_STM2D48230258 (2024-12-07)RAW_T5A5.RData")
+```{r ggir output, message=FALSE, warning=FALSE}
+mdat = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/participants/week_1/ACT001D/RAW_processed/output_ACT001D/meta/ms5.outraw/40_100_400/ACT001D_week1_STM2D48232507 (2024-12-07)RAW_T5A5.csv") |>
+  mutate(timestamp = as.POSIXct(timenum, origin = "1970-01-01", tz = "UTC"))
 
-# mdat
 ```
 
 
@@ -281,7 +281,9 @@ ggplot(mdat_hour, aes(x = timestamp_hour)) +
 
 - combine these hourly values with HR, Temp, and steps to one data set for all participant combined for the first week? so that we have one hourly averaged accelerometer validated dataset with all variables measured by the Actigraph device.
 
-- How do we hourly average HR, Cardiac Rythm, Steps  etc?
+- How do we hourly average heart rate variability?
+
+- We need all the actigraph conversion for week 1 for me to do this
 
 
 

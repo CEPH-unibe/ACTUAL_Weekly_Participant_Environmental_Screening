@@ -1,5 +1,5 @@
 ---
-title: "Cleanliness Report"
+title: "Cleanliness Report Week 1"
 author: "Tino Schneidewind"
 date: "2025-04-22"
 output: html_document
@@ -16,27 +16,21 @@ Here we investigate both the **completeness of the data collection** as well as 
 
 ```{r load data, echo = FALSE, message=FALSE, warning=FALSE}
 rm(list=ls())
-source("../MACorWIN.R")
 
 # libraries
 library(readr);library(tidyr);library(dplyr);library(readxl);library(zoo);library(naniar);library(reshape2)
 library(lubridate);library(stringr);library(ggplot2);library(gridExtra); library(grid); library(visdat)
 
 # data
-if(MACorWIN == 0){
-  data_clean = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_hourly_data_clean.csv")
-  data_unclean = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Participants/week1_hourly_data_unclean.csv") 
-} else {
-  data_clean = read_csv("Y:/CCH/Actual_Project/data/Participants/week_1/week1_hourly_data_clean.csv") 
-  data_unclean = read_csv("Y:/CCH/Actual_Project/data-raw/Participants/week1_hourly_data_unclean.csv") 
-  }
+data_clean = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_hourly_data_clean.csv")
+data_unclean = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Participants/week1_hourly_data_unclean.csv") 
 ```
 
 First lets look at all the missing data divided into the 6 variables of interest in the uncleaned and cleaned data sets
 
 ### Unclean data 
 
-```{r missing data plots for uncleaned data, echo= FALSE, fig.width=12, fig.align="center", fig.height=12}
+```{r missing data plots for uncleaned data, echo=FALSE, fig.align="center", fig.height=12, fig.width=12}
 # PLOT 1
 # shows clear where we have missing data per variable
 plot1 <- vis_miss(data_unclean[,4:9])+

@@ -5,14 +5,11 @@
 rm(list = ls())
 library(dplyr); library(ggplot2);library(ggnewscale);library(viridis);library(lubridate);library(readr)
 
-# for handling file paths and different operating systems
-source("MACorWIN.R")
 
 # specify the week to compile (needs to match naming convention on synology)
 week_indicator = "week_1"
 
 # load redcap from CCH
-if(MACorWIN == 0){
   # REDCap for uids and start and end times
   redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
     dplyr::mutate(starttime = ymd_hms(starttime),
@@ -20,16 +17,6 @@ if(MACorWIN == 0){
                   redcap_event_name = substr(redcap_event_name, 13,18)) |>
     filter(redcap_event_name == week_indicator)|>
     filter(!(uid %in% c("ACT029U", "ACT034X", "ACT045O")))
-  
-} else {
-  # REDCap for uids and start and end times
-  redcap = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")|>
-    dplyr::mutate(starttime = ymd_hms(starttime),
-                  endtime   = ymd_hms(endtime),
-                  redcap_event_name = substr(redcap_event_name, 13,18)) |>
-    filter(redcap_event_name == week_indicator)|>
-    filter(!(uid %in% c("ACT029U", "ACT034X", "ACT045O")))
-}
 
 
 # vector of all uids
@@ -38,6 +25,7 @@ uids <- unique(redcap$uid)
 
 df_validation = data.frame()
 
+df_validation_hourly = data.frame()
 
 
 
@@ -110,23 +98,20 @@ for(uid in uids){
 
   
   
+  # save the raw and hourly aggregated data for every participant
+  write_csv(mdat, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/participants/week_1/",uid, "/", uid, "_week1_actigraph_validation_RAW.csv"))
+  write_csv(mdat_hour, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/participants/week_1/",uid, "/", uid, "_week1_actigraph_validation_hourly.csv"))
   
-  
-  df_validation = rbind(df_validation, mdat_hour)
+  df_validation = rbind(df_validation, mdat)
+  df_validation_hourly = rbind(df_validation_hourly, mdat_hour)
   
   
   
 }
 
-# save the aggregated data
-if(MACorWIN == 0){
-
-  write_csv(df_validation, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_actigraph_validation_hourly.csv")
-  
-} else {
-  # write the data to csv 
-  write_csv(data_full, "Y:/CCH/Actual_Project/data/Participants/week_1/week1_actigraph_validation_hourly.csv")
-}
+# save the raw and hourly aggregated data
+write_csv(df_validation, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_actigraph_validation_RAW.csv")
+write_csv(df_validation_hourly, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_actigraph_validation_hourly.csv")
 
 
 

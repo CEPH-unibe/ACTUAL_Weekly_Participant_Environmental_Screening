@@ -1,7 +1,7 @@
 # server logic
 server <- function(input, output, session) {  
   
-  # filter the redcap data for starttimes within the selected date range
+  # filter the redcap data for starttimes within the selected date range (start and end)
   filtered_data <- reactive({
     
     req(input$date_range)  # get range
@@ -9,10 +9,11 @@ server <- function(input, output, session) {
     data_filtered <- redcap |>
       select(-setup, -takedown, -n_days,
              -starts_with("v0"))|>
-      filter(as.Date(starttime) >= input$date_range[1] &        # filter by range
+      filter(as.Date(starttime) >= input$date_range[1] &       
                as.Date(starttime) <= input$date_range[2]) |>
       dplyr::mutate(starttime = format(starttime, "%Y-%m-%d %H:%M:%S"),
              endtime = format(endtime, "%Y-%m-%d %H:%M:%S")) 
+    
     
     # give all uid with starttime within the range for selection for plots
     updateSelectInput(session, "uid_select", 
@@ -22,7 +23,8 @@ server <- function(input, output, session) {
   })
   
   
-  # filter the redcap data for starttimes within the selected date range
+  
+  # filter the redcap data for starttimes within the selected date range (pvl visits)
   visit_data <- reactive({
     
     req(input$date_range)  # get range
@@ -36,16 +38,20 @@ server <- function(input, output, session) {
     return(data_visit)
   })
   
-  # show the filtered data
+  
+  
+  # show the filtered redcap data (start and end)
   output$filtered_data <- renderTable({
     filtered_data() 
   }, rownames = TRUE)
   
-  # show the filtered data
+  # show the filtered redcap data (pvl visits)
   output$visit_table <- renderTable({
     visit_data() |> 
       mutate(across(c(setup, starts_with("v0"), takedown), ~ format(., "%Y-%m-%d")))
   }, rownames = TRUE)
+  
+  
   
   
   # generate the file path based on the selected uid and the event which happened in the date range
@@ -60,28 +66,19 @@ server <- function(input, output, session) {
       filter(uid == selected_uid) |>
       pull(redcap_event_name)
     
-    
-    if(MACorWIN == 0){
+
       
       # create the file path based on UID and redcap_event_name to the data to be plotted
       file_path <- paste0("~/SynologyDrive/Participants/", selected_uid, "/", 
                           gsub("_", "", redcap_event)
                           , "/")
-      
-    } else {
-      
-      # create the file path based on UID and redcap_event_name to the data to be plotted
-      file_path <- paste0(Sys.getenv("HOME"), "/SynologyDrive/Participants/", selected_uid, "/", 
-                          gsub("_", "", redcap_event)
-                          , "/")
-      
-    }
 
-    
+
     # output the file path to the UI
     output$file_path <- renderText({
       paste("File Path: ", file_path)
     })
+    
     
     
     
@@ -91,6 +88,7 @@ server <- function(input, output, session) {
     common_prefix_path <- common_prefix(files_in_folder)
     #     remove the common prefix from each file path
     files_in_folder_unique <- sub(common_prefix_path, "", files_in_folder)
+    
     
     
     # display the list of files
@@ -115,6 +113,7 @@ server <- function(input, output, session) {
     output$total_files <- renderText({
       paste("Total Files: ", length(files_in_folder))
       })
+    
     
     
     # for plotting list only .xlsx files ENVIRONMENTAL FILES

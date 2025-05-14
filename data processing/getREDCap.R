@@ -23,7 +23,6 @@ library(lubridate)
 
 rm(list=ls())
 
-source("MACorWIN.R")
 
 # load REDCap data
 api_url <- "https://redcap.mrc.gm:8443/redcap/api/"
@@ -53,15 +52,7 @@ if (http_status(response)$category == "Success") {
 
 # save all the data to CCH
 # Save dataset
-if(MACorWIN == 0){
-  
-  write.csv(data, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")
-  
-} else {
-  
-  write.csv(data, "Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")
-  
-}
+write.csv(data, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")
 
 # select necessary columns and convert to datetime
 # return min pvl_end as a start time of the observation week
@@ -101,16 +92,8 @@ data_selected <- data |>
   mutate(n_days = round(difftime(endtime, starttime, units = "days"), digits = 1))
 
 # Save dataset
-if(MACorWIN == 0){
-  
-  write.csv(data_selected, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv")
-  print("data uploaded")
-} else {
-  
-  write.csv(data_selected, "Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv")
-  print("data uploaded")
-}
-
+write.csv(data_selected, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv")
+print("data uploaded")
 
 
 
@@ -132,15 +115,7 @@ data_pvl <- data |>
 
 
 # Save dataset
-if(MACorWIN == 0){
-  
-  write.csv(data_pvl, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv")
-  print("data uploaded")
-} else {
-  
-  write.csv(data_pvl, "Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv")
-  print("data uploaded")
-}
-
+write.csv(data_pvl, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv")
+print("data uploaded")
 
 

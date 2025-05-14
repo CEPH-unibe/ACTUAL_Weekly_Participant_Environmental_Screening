@@ -7,7 +7,6 @@ rm(list=ls())
 
 # for handling file paths and different operating systems
 source("functions.R")
-source("MACorWIN.R")
 
 # libraries
 library(readr);library(tidyr);library(dplyr);library(readxl);library(zoo)
@@ -16,22 +15,11 @@ library(lubridate);library(stringr);library(ggplot2);library(gridExtra); library
 
 # LOAD and SPLIT DATA
 #----
-if(MACorWIN == 0){
-  
   # iButton and Noise data
-  data <- read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Participants/week1_minute_data_unclean.csv")
+  data <- read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Participants/week1_IB_RAW_data_unclean.csv")
   
   # REDCap for uids and start and end times
   redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")
-  
-  } else {
-    
-    # iButton and Noise data
-    data <- read_csv("Y:/CCH/Actual_Project/data-raw/Participants/week1_minute_data_unclean.csv")
-    
-    # REDCap for uids and start and end times
-    redcap = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")
-  }
 
 # select redcap data 
 redcap <- redcap |> 
@@ -188,6 +176,12 @@ data_W <- data_W |>
          IBW_HUM = if_else(IBW_HUM_MA_thrsh == 1, NA, IBW_HUM))
 
 
+# Save the data on CCH
+# write the data to csv 
+write_csv(data_H, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_IBH_RAW_data_clean.csv")
+write_csv(data_W, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_IBW_RAW_data_clean.csv")
+write_csv(data_T, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_IBT_RAW_data_clean.csv")
+write_csv(data_N, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_NS_RAW_data_clean.csv")
 
 
 
@@ -265,59 +259,13 @@ data_combined <- datetime_series |>
   mutate(datetime = as.POSIXct(datetime, origin = "1970-01-01", tz = "CET") - 3600)
   
 
-# Save the data on CCH
-
-
-if(MACorWIN == 0){
+# Save the hourly combined aggregated data on CCH
   # write the data to csv 
-  write_csv(data_combined, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_hourly_data_clean.csv")
-} else {
-  
-  # write the data to csv 
-  write_csv(data_combined, "Y:/CCH/Actual_Project/data/Participants/week_1/week1_hourly_data_clean.csv")
-}
+write_csv(data_combined, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_IB_hourly_data_clean.csv")
 
 
 #----
 
 
 
-
-
-
-
-
-
-# visdat::vis_miss(data_H[,3:4])
-# visdat::vis_miss(data_T[,3])
-# visdat::vis_miss(data_W[,3:4])
-# 
-# 
-# visdat::vis_miss(data_H_hourly[,3:4])
-# visdat::vis_miss(data_T_hourly[,3])
-# visdat::vis_miss(data_W_hourly[,3:4])
-# 
-# visdat::vis_miss(data_combined[, 4:9])
-# 
-# 
-# 
-# par(mfrow=c(1,2))
-# plot( data_W$datetime[data_W$uid == "ACT014F"], data_W$IBW_TEMP[data_W$uid == "ACT014F"], type = "p", ylim = c(10,80))
-# plot( data_combined$datetime[data_combined$uid == "ACT014F"], data_combined$IBW_TEMP[data_combined$uid == "ACT014F"], type = "p", ylim = c(10,80))
-# 
-# par(mfrow=c(1,2))
-# plot( data_W$datetime[data_W$uid == "ACT003C"], data_W$IBW_TEMP[data_W$uid == "ACT003C"], type = "p", ylim = c(10,80))
-# plot( data_combined$datetime[data_combined$uid == "ACT003C"], data_combined$IBW_TEMP[data_combined$uid == "ACT003C"], type = "p", ylim = c(10,80))
-# 
-# par(mfrow=c(1,2))
-# plot( data_W$datetime[data_W$uid == "ACT032V"], data_W$IBW_TEMP[data_W$uid == "ACT032V"], type = "p", ylim = c(10,80))
-# plot( data_combined$datetime[data_combined$uid == "ACT032V"], data_combined$IBW_TEMP[data_combined$uid == "ACT032V"], type = "p", ylim = c(10,80))
-# 
-# par(mfrow=c(1,2))
-# plot( data_T$datetime[data_T$uid == "ACT032V"], data_T$IBT_TEMP[data_T$uid == "ACT032V"], type = "p", ylim = c(24,36))
-# plot( data_combined$datetime[data_combined$uid == "ACT032V"], data_combined$IBT_TEMP[data_combined$uid == "ACT032V"], type = "p", ylim = c(24,36))
-# 
-# data_wo_NA <- data_combined |>
-#   drop_na()
-# nrow(data_wo_NA) / nrow(data_combined)
 

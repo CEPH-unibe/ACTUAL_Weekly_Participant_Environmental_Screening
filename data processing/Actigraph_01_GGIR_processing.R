@@ -8,21 +8,14 @@ library(readr); library(GGIR)
 
 # for handling file paths and different operating systems
 source("functions.R")
-source("MACorWIN.R")
 
 # specify the week to compile (needs to match naming convention on synology)
 week_indicator = "week_1"
 
 # load redcap from CCH
-if(MACorWIN == 0){
   # REDCap for uids and start and end times
   redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv") |> 
     filter(str_starts(uid, "ACT"))
-  
-} else {
-  # REDCap for uids and start and end times
-  redcap = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")
-}
 
 
 # I need to create a folder in which all the participants have individual folders

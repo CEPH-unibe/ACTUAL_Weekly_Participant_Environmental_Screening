@@ -34,13 +34,8 @@ The steps of cleaning after revision are the following:
 4. Variability (variable specific threshold of standard deviation over an extended period of time) **especially important for worn temperature/humidity**
 
 ```{r load redcap, echo = FALSE, warning=FALSE, message=FALSE}
-if(MACorWIN == 0){
-  # REDCap for uids and start and end times
-  redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")
-  } else {
-  # REDCap for uids and start and end times
-  redcap = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv")
-  }
+# REDCap for uids and start and end times
+redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")
 
 redcap_pvl <- redcap |>
   select( uid, redcap_event_name, pvl_start, pvl_end,pvl_ibuthouse, pvl_ibutworn, pvl_ibuttaped) |>
@@ -51,20 +46,11 @@ redcap_pvl <- redcap |>
 
 
 ```{r data, message=FALSE, warning=FALSE, echo=FALSE}
-
-if(MACorWIN == 0){
-  # uncleaned but selected by pvl
-  data = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_minute_data_unclean.csv") |>
+# uncleaned but selected by pvl
+data = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_minute_data_unclean.csv") |>
     filter(uid %in% c("ACT001D", "ACT003C", "ACT004S", "ACT014F", "ACT032V")) |>
     mutate(Variable = str_replace(Variable, "_NS", "NS"))
 
-  } else {
-
-    # uncleaned but selected by pvl
-    data = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_minute_data_unclean.csv") |>
-      filter(uid %in% c("ACT001D", "ACT003C", "ACT004S", "ACT014F", "ACT032V")) |>
-      mutate(Variable = str_replace(Variable, "_NS", "NS"))
-}
 
 
 # house data

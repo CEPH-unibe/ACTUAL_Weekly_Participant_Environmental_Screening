@@ -19,8 +19,6 @@ rm(list=ls())
 
 # for handling file paths and different operating systems
 source("../functions.R")
-source("../MACorWIN.R")
-
 # libraries
 library(readr);library(tidyr);library(dplyr);library(readxl);library(zoo)
 library(lubridate);library(stringr);library(ggplot2);library(gridExtra); library(grid)
@@ -34,23 +32,12 @@ week_indicator = "week_1"
 #---- 
 
 # load redcap from CCH
-if(MACorWIN == 0){
-  
   # iButton and Noise data
-  data <- read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Participants/week1_minute_data_unclean.csv")
+  data <- read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Participants/week1_IB_RAW_data_unclean.csv")
   
   # REDCap for uids and start and end times
   redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")
   
-} else {
-  
-  # iButton and Noise data
-  data <- read_csv("Y:/CCH/Actual_Project/data-raw/Participants/week1_minute_data_unclean.csv")
-  
-  # REDCap for uids and start and end times
-  redcap = read_csv("Y:/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")
-}
-
 
 # select redcap data 
 redcap <- redcap |> 
@@ -99,20 +86,28 @@ as described in [Land Use Regression Modeling of Outdoor Noise Exposure in Infor
 
 a) restrict to the same weekly period for everyone. Identify start and end times for which everyone is being monitored. Time windows can be discussed based on data availability.
 
-In my opinion, this should be Monday 8am to Friday 8 pm.
+Tuesday 6 am to saturday 6 am
 
 ```{r 1a}
 data_N_001 <- data_N_001 |>
   filter(
-    (dow == 1 & hour >= 8) |  # Monday from 8am
-      (dow %in% 2:4) |        # Tuesday to Thursday
-      (dow == 5 & hour <= 20) # Friday up to 8pm
+    (dow == 2 & hour >= 6) |  # Tuesday from 6am
+      (dow %in% 3:5) |        # Tuesday to Thursday
+      (dow == 6 & hour < 6) # Saturday up to 6am
   )
 ```
 
 b)
 Exclude observations with >10% missing data (threshold to discuss depending on data availability)
-**what do we consider an observation?**
+
+```{r 1b}
+NA_perc = mean(is.na(data_N_001$NS))
+
+if(NA_perc > .1){
+  data_N_001$NS = NA
+}
+```
+
 
 c)
 Remove outliers, defined as one-minute noise measurements (=raw data) exceeding the five-day mean by plus or minus three standard deviations.
@@ -200,10 +195,52 @@ noise_ind_daily <- data_N_001 |>
     # nighttime intermittency ratio between 6-22 IR_night
     IR_night = (10^(0.1 * L_Aeq_night) ) / (10^(0.1 * L_Aeq_tot) ) * 100,
     
+    # variables for L_den
+    L_den_day = 10 * log10( mean(10^(0.1 * NS_clean[hour >= 6 & hour < 18]), na.rm = TRUE ) ),
+    L_den_eve = 10 * log10( mean(10^(0.1 * NS_clean[hour >= 18 & hour < 22]), na.rm = TRUE ) ),
+    L_den_nig = 10 * log10( mean(10^(0.1 * NS_clean[hour < 6 | hour >= 22]), na.rm = TRUE ) ),
+    
     # L_den
     L_den = 10 * log10( (1/24) * 
-                          (12 * 10^( L_Aeq_day /10) +
-                             8 * 10^( (L_Aeq_night + 10 ) /10))),
+                          (12 * 10^( L_den_day /10) +
+                             4 * 10^( (L_den_eve + 5 ) /10) +
+                             8 * 10^( (L_den_nig + 10 ) /10))),
+    .groups = "drop")
+
+
+
+# weekly data frame
+noise_ind_weekly <- data_N_001 |>
+  summarize(
+    
+    # A-weighted equivalent continuous daily sound levels L_Aeq_24h
+    L_Aeq = 10 * log10( mean(10^(0.1 * NS_clean), na.rm = TRUE ) ),
+    
+    # A-weighted equivalent continuous daytime sound levels between 6-22h L_Aeq_day
+    L_Aeq_day = 10 * log10( mean(10^(0.1 * NS_clean[hour >= 6 & hour < 22]), na.rm = TRUE ) ),
+    
+    # A-weighted equivalent continuous nighttime sound levels 22-6 L_Aeq_night
+    L_Aeq_night = 10 * log10( mean(10^(0.1 * NS_clean[hour < 6 | hour >= 22]), na.rm = TRUE ) ),
+    
+    # Daily intermittency ratio IR_24h
+    IR = (10^(0.1 * L_Aeq) ) / (10^(0.1 * L_Aeq_tot) ) * 100,
+    
+    # daytime intermittency ratio between 6-22 IR_day
+    IR_day = (10^(0.1 * L_Aeq_day) ) / (10^(0.1 * L_Aeq_tot) ) * 100,
+    
+    # nighttime intermittency ratio between 6-22 IR_night
+    IR_night = (10^(0.1 * L_Aeq_night) ) / (10^(0.1 * L_Aeq_tot) ) * 100,
+    
+    # variables for L_den
+    L_den_day = 10 * log10( mean(10^(0.1 * NS_clean[hour >= 6 & hour < 18]), na.rm = TRUE ) ),
+    L_den_eve = 10 * log10( mean(10^(0.1 * NS_clean[hour >= 18 & hour < 22]), na.rm = TRUE ) ),
+    L_den_nig = 10 * log10( mean(10^(0.1 * NS_clean[hour < 6 | hour >= 22]), na.rm = TRUE ) ),
+    
+    # L_den
+    L_den = 10 * log10( (1/24) * 
+                          (12 * 10^( L_den_day /10) +
+                             4 * 10^( (L_den_eve + 5 ) /10) +
+                             8 * 10^( (L_den_nig + 10 ) /10))),
     .groups = "drop")
 ```
 
@@ -213,9 +250,11 @@ ggplot(data = noise_ind_daily, aes(x = dow)) +
   geom_line(aes(y = L_Aeq_24h, color = "L_Aeq 24h")) +
   geom_line(aes(y = L_Aeq_day, color = "L_Aeq day")) +
   geom_line(aes(y = L_Aeq_night, color = "L_Aeq night"))  +
+  geom_line(aes(y = L_den, color = "L_den")) +
   scale_color_manual(values = c("L_Aeq 24h" = "green4", 
                                 "L_Aeq day" = "gold", 
-                                "L_Aeq night" = "grey2")) +
+                                "L_Aeq night" = "grey2",
+                                "L_den" = "red")) +
   theme_minimal() +
   labs(x = "Day of the week", y = "L_Aeq [dB]", color = "Legend") +
   lims(y = c(40,70))
@@ -239,15 +278,9 @@ ggplot(data = noise_ind_daily, aes(x = dow)) +
 
 
 
-#### Questions:
+#### Next steps:
 
-- exclude observations based on >10% missing data: what is an observation in our case? a whole file meaning a whole participant week?
-- How should I aggregate this and save this? should I compile this for every participant and then save it separately from the iButton data?
-
-```{r data}
-head(noise_ind_daily)
-head(noise_ind_hourly)
-```
+- loop through all the participants and rbind the 3 datasets and save them on data/participants/week1
 
 
 <br>
