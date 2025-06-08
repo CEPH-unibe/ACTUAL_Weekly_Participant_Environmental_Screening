@@ -1,9 +1,12 @@
-# ACTUAL: data processing
+# The ACTUAL Project
 
-Author: Tino Schneidewind
+[ACTUAL](https://www.ispm.unibe.ch/research/research_groups_and_themes/climate_epidemiology_and_public_health/index_eng.html#pane876954) (*Advancing research on extreme humid heat and health*) aims to advance knowledge about the impact of humid heat on human health through developing, diversifying, and applying new methodologies, data resources, and settings beyond existing current state-of-the-art approaches in climate epidemiology.
 
-### Contents
-this repository investigates raw and processed data, developes methods for cleaning and processes the data accordingly
+<br>
+
+### Content of this repository
+
+This repository includes the data management and processing of the ACTUAL project, a cohort study in The Gambia measuring temperature and humidity on and surrounding 80 participants over 4 seperate weeks in a sub-saharan climate.
 
 <br>
 
@@ -13,11 +16,11 @@ A description of the processing and aggregation of of the output of different de
 
 ### REDCap
 
-In the gerREDCap.R file I access REDCap via API and save the RAW output file as well as two aggregated versions in data/App_Personal_Data_Screening/.
+[REDCap](https://project-redcap.org/) logs metadata on the study procedure and measurements. In the getREDCap.R file I access REDCap via API and save the RAW output file as well as two aggregated versions in data/App_Personal_Data_Screening/.
 
 ### iButton (IB) data
 
-The iButton data from Synology is first compiled rowwise for all variables combined, and additionally aggregated to hourly averages and then joined by columns. Both files (RAW rowwise and hourly averages with joined columns) are saved to CCH/Actual_project/data-raw/Participants.
+The iButton data, saved on a Synology server, is first compiled rowwise for all variables combined, and additionally aggregated to hourly averages and then joined by columns. Both files (RAW rowwise and hourly averages with joined columns) are saved to CCH/Actual_project/data-raw/Participants.
 
 Additionally to just compiling in RAW and hourly format, the RAW data is cleaned using the steps described in /vignettes/Data_Cleaning_Protocol_revised.Rmd. This data is saved in RAW format through rbinding for every variable individually and again aggregated to hourly averages and joined through columns. Both clean file types (hourly aggregated and multiple variable RAW files) are saved in data/Participants/week_1/.
 
@@ -51,7 +54,7 @@ I answer the following questions in this App:
 3. What were the exposures of each person of the week?
 4. Create a pdf-file for every time period that enables me to check what data is missing and if there are some major irregularities.
 
-This app serves as a control for the measured data to ensure correct measurement intervals in line with the plan on REDCap and is not missing. 
+This app serves as a control for the measured data to ensure correct measurement intervals in line with the plan on REDCap. 
 
 ### /data processing
 
