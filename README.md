@@ -12,7 +12,7 @@ This repository includes the data management and processing of the ACTUAL projec
 
 # Processing Pipelines
 
-A description of the processing and aggregation of of the output of different devices.
+A description of the processing and aggregation of the output of different devices.
 
 ### REDCap
 
@@ -47,7 +47,7 @@ Using this `app_cleaned` app, I compare the cleaned and aggregated IB data to un
 
 ### The app_weekly_cleaning_reports folder
 
-I answer app: `app_weekly_cleaning_reports` the following questions in this App:
+In the app: `app_weekly_cleaning_reports`, I answer the following questions in this App:
 
 1. Who has been monitored per week/time-period? 
 2. Which files are available per person?
