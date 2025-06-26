@@ -73,6 +73,7 @@ server <- function(input, output, session) {
                           gsub("_", "", redcap_event)
                           , "/")
 
+      # file_path <- paste0("~/SynologyDrive/Participants/ACT008U/week2/")
 
     # output the file path to the UI
     output$file_path <- renderText({
@@ -91,6 +92,7 @@ server <- function(input, output, session) {
     
     
     
+    
     # display the list of files
     output$file_list_ui <- renderUI({
       if (length(files_in_folder) > 0) {
@@ -106,8 +108,10 @@ server <- function(input, output, session) {
         h4("No files found in this folder.")
       }
     })
-    
-    
+
+      
+      
+      
     
     # display the total number of files
     output$total_files <- renderText({
@@ -308,7 +312,7 @@ server <- function(input, output, session) {
   
   
   
-  output$download_pdf <- downloadHandler(
+  output$download_pdf <- downloadHandler( # downloadHandler
     filename = function() {
       
       # specify where the report will be saved
@@ -316,7 +320,7 @@ server <- function(input, output, session) {
       paste0("../reports/Weekly_Report_from_",input$date_range[1],"_to_",input$date_range[2] , ".pdf")
     },
     
-    content = function(file) {
+    content = function(file) { # content
       
       report_path <- paste0("./reports/Weekly_Report_from_",input$date_range[1],"_to_",input$date_range[2] , ".pdf")
       
@@ -336,6 +340,10 @@ server <- function(input, output, session) {
       
       plot_list <- list()  
       plot_counter <- 1 
+      
+      # SCK Plots
+      plot_list_SCK <- list()  
+      plot_counter_SCK <- 1
       
       # Define participant data *before* the loop, without `reactive()`
       participant_data <- redcap |>
@@ -411,8 +419,134 @@ server <- function(input, output, session) {
               # print(plot1)  # Ensure ggplot gets printed to the PDF
               plot_list[[plot_counter]] <- plot1
               plot_counter <- plot_counter + 1
+              
             }
           }
+            
+              # SCK Plots
+              # file_path <- paste0("~/SynologyDrive/Participants/ACT058G/week2/")
+              # select the SCK folder if there is one
+              # grid.newpage()
+              # file_path_SCK <- list.files(file_path, pattern = "SCK", full.names = TRUE)
+              # plot_list_SCK <- list()  
+              # plot_counter_SCK <- 1 
+              # # grid.text(substr(file_path_SCK,nchar(file_path_SCK)-16, nchar(file_path_SCK)), x = 0.5, y = 0.5, gp = gpar(fontsize = 14, fontface = "bold"))
+              # # grid.newpage()
+              # 
+              # # add a plot list for the SCK files it the uid has a corresponding folder
+              # if(length(file_path_SCK) > 0 ){
+              # 
+              #   files_in_folder_SCK <- list.files(file_path_SCK)
+              # 
+              #   # empty data frame for rbinding
+              #   data_SCK_rbind <- data.frame()
+              #   for (fi in files_in_folder_SCK) {
+              # 
+              #     # read individual files
+              #     data_SCK <- read.csv(paste0(file_path_SCK, "/", fi), skip = 2) |>
+              #       slice(-1)
+              # 
+              #     data_SCK_rbind <- rbind(data_SCK_rbind, data_SCK)
+              #   }
+              # 
+              #   # save timeseries
+              #   SCK_timeseries <- data_SCK_rbind |>
+              #     mutate(TIME =  ymd_hms(Time, tz = "UTC")) |>
+              #     select(TIME)
+              # 
+              #   # deselect the columns SDCARD and RSS
+              #   data_SCK_rbind <- data_SCK_rbind |>
+              #     select(-SD.card, -WiFi.RSSI, -Time)
+              # 
+              # # # print the name of the SCK
+              # # grid.newpage()
+              # # grid.text(substr(file_path_SCK,nchar(file_path_SCK)-16, nchar(file_path_SCK)), x = 0.5, y = 0.5, gp = gpar(fontsize = 14, fontface = "bold"))
+              # 
+              # # par(mfrow = c(3,3))
+              # 
+              # for (ncol_SCK in 1:ncol(data_SCK_rbind)) {
+              #   # grid.newpage()
+              # 
+              #   # print(ncol_SCK)
+              #   data_SCK_rbind_select <- data_SCK_rbind[,ncol_SCK]
+              #   plot_SCK <-  plot(SCK_timeseries$TIME, data_SCK_rbind_select, main = colnames(data_SCK_rbind)[ncol_SCK])
+              #   
+              #   plot_list_SCK[[plot_counter_SCK]] <- plot_SCK
+              #   plot_counter_SCK <- plot_counter_SCK + 1
+              # }
+              # }
+              # 
+              # grid.newpage()
+          
+          
+          # file_path <- paste0("~/SynologyDrive/Participants/ACT058G/week2/")
+          # Find SCK folders inside the participant's folder
+          file_path_SCK_folders <- list.dirs(file_path, recursive = FALSE, full.names = TRUE)
+          file_path_SCK_folders <- file_path_SCK_folders[grepl("SCK", basename(file_path_SCK_folders))]
+          
+          # Proceed if SCK folder(s) exist
+          if (length(file_path_SCK_folders) > 0) {
+            for (sck_folder in file_path_SCK_folders) {
+              files_in_folder_SCK <- list.files(sck_folder, pattern = "\\.CSV$", full.names = TRUE)
+              
+              data_SCK_rbind <- data.frame()
+              
+              # text output
+              header_output <- basename(file_path_SCK_folders)
+              
+              for (csv_file in files_in_folder_SCK) {
+                # Read and clean SCK CSV
+                temp_data <- tryCatch({
+                  read.csv(csv_file, skip = 2) |> 
+                    slice(-1)
+                }, error = function(e) NULL)
+                
+                if (!is.null(temp_data)) {
+                  data_SCK_rbind <- rbind(data_SCK_rbind, temp_data)
+                }
+              }
+              
+              if (nrow(data_SCK_rbind) > 0 && "Time" %in% colnames(data_SCK_rbind)) {
+                # Parse datetime and filter unnecessary columns
+                SCK_timeseries <- data_SCK_rbind |>
+                  mutate(TIME = ymd_hms(Time, tz = "UTC")) |>
+                  select(TIME)
+                
+                cols_to_remove <- intersect(c("SD.card", "WiFi.RSSI", "Time"), colnames(data_SCK_rbind))
+                data_SCK_rbind <- data_SCK_rbind |>
+                  select(-all_of(cols_to_remove))
+                
+                # Plot each column
+                for (col_index in 1:ncol(data_SCK_rbind)) {
+                  # col_name <- colnames(data_SCK_rbind)[col_index]
+                  y_values <- data_SCK_rbind[,col_index]
+                  
+                  if (is.numeric(y_values) && length(y_values) == length(SCK_timeseries$TIME)) {
+                    # Combine time and y_values into a dataframe for ggplot
+                    df_plot <- data.frame(
+                      Time = SCK_timeseries$TIME,
+                      Value = y_values
+                    )
+                    
+                    # Generate the plot using ggplot2
+                    plot_SCK <- ggplot(df_plot, aes(x = Time, y = Value)) +
+                      geom_point(size = 0.8, color = "grey2") +
+                      labs(
+                        title = colnames(data_SCK_rbind)[col_index],
+                        x = "Time",
+                        y = colnames(data_SCK_rbind)[col_index]
+                      ) +
+                      theme_minimal()
+                    
+                    # Save the plot in your list
+                    plot_list_SCK[[plot_counter_SCK]] <- plot_SCK
+                    plot_counter_SCK <- plot_counter_SCK + 1
+                  }
+                }
+              }
+            }
+          }
+          
           
           # Noise Data Plotting
           if (length(files_in_folder_xls) > 0) {
@@ -448,7 +582,7 @@ server <- function(input, output, session) {
           }
         }
         
-        for (n in 1:length(plot_list)) {
+        for (n in 1:length(plot_list)) { # n
           
           if(n == 1 | (n-1) %% 6 == 0){
             grid.newpage()
@@ -456,9 +590,23 @@ server <- function(input, output, session) {
           }
           
           print(plot_list[[n]])
+        } # n
+        
+        # grid.newpage()
+        
+        
+        
+        if (length(plot_list_SCK) > 0) {
+          grid.newpage()
+          grid.text(header_output, x = 0.5, y = 0.5, gp = gpar(fontsize = 14, fontface = "bold"))
+          for (n in 1:9) {
+            # grid.newpage()
+            print(plot_list_SCK[[n]])
+          }
         }
         
+        
         dev.off() 
-    }
-  )
-}
+    } # content
+  ) # downloadHandler
+} # function
