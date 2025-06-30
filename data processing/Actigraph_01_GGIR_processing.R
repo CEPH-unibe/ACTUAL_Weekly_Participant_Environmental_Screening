@@ -63,7 +63,7 @@ uids <- unique(redcap$uid)
 
 # for (uid in uids) { # commented out for safety
   
-  print(uid)
+  # print(uid)
   datadir = paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/participants/week_1/", uid, "/") 
   
   # create output folder

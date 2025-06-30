@@ -1,0 +1,157 @@
+---
+title: "Actigraph RAW Data Screening"
+author: "Tino Schneidewind"
+date: "2025-06-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## The aim of this document
+The aim of this document is to investigate the actigraph data. I want to compare both the RAW output of all variables (1min resolution) to the cleaned (PVL, weartime validation) and aggregated (hourly) output. Through this I hope to identify if further cleaning is necessary, for example because the device is malfunctioning.
+
+```{r load redcap, echo = FALSE, message=FALSE, warning=FALSE}
+library(readr);library(tidyverse);library(lubridate)
+redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
+    dplyr::mutate(starttime = ymd_hms(starttime),
+                  endtime   = ymd_hms(endtime),
+                  redcap_event_name = substr(redcap_event_name, 13,18)) |>
+    filter(redcap_event_name == "week_1")|>
+    filter(!(uid %in% c("ACT029U", "ACT034X", "ACT045O")))
+
+uids <- unique(redcap$uid)
+```
+
+### 1.chose a participant
+
+```{r step1}
+uid_chosen <- uids[4] # options 2; 3; 4
+loc <- paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/participants/week_1/",uid_chosen, "/")
+```
+
+### 2. load all their variables
+
+```{r load data, message=FALSE, warning=FALSE}
+# weartime
+WT_file <- list.files(loc, pattern = "validation_hourly")
+WT_hourly <- read_csv(paste0(loc,WT_file)) |>
+  mutate(datehour = timestamp_hour) |>
+  select(datehour, ACC, validity)
+
+# cardiac rythm
+CR_file <- list.files(loc, pattern = "CR")
+CR <- read_csv(paste0(loc,CR_file))
+
+# heart rate
+HR_file <- list.files(loc, pattern = "HR_RAW")
+HR <- read_csv(paste0(loc,HR_file))
+
+# heart rate variability
+HRV_file <- list.files(loc, pattern = "HRV_RAW")
+HRV <- read_csv(paste0(loc,HRV_file))
+
+# inter beat interval
+IBI_file <- list.files(loc, pattern = "IBI_RAW")
+IBI <- read_csv(paste0(loc,IBI_file))
+
+# steps
+STEPS_file <- list.files(loc, pattern = "Steps")
+STEPS <- read_csv(paste0(loc,STEPS_file))
+```
+### 3. aggregate to hourly, clean all variables by weartime validation and PVL
+
+```{r step 3}
+# cardiac rythm
+CR_hourly <- CR |>
+  mutate(datehour = floor_date(start_timestamp, unit = "hour")) |>
+  group_by(datehour) |>
+  summarize(bout_length_seconds_mean = mean(bout_length_seconds, na.rm = TRUE))
+
+# heart rate
+HR_hourly <- HR |>
+  mutate(datehour = floor_date(timestamp, unit = "hour")) |>
+  group_by(datehour) |>
+  summarize(heart_rate_mean = mean(HeartRate, na.rm = TRUE))
+  
+
+# heart rate variability
+HRV_hourly <- HRV |>
+  mutate(datehour = floor_date(timestamp, unit = "hour")) |>
+  group_by(datehour) |>
+  summarize(breathing_rate_mean = mean(breathing_rate, na.rm = TRUE))
+  
+  
+# inter beat interval
+IBI_hourly <- IBI |>
+  mutate(datehour = floor_date(timestamp, unit = "hour")) |>
+  group_by(datehour) |>
+  summarize(interbeat_interval_mean = mean(interbeat_interval, na.rm = TRUE))
+
+# steps
+STEPS_hourly <- STEPS |>
+  mutate(datehour = floor_date(timestamp, unit = "hour")) |>
+  group_by(datehour) |>
+  summarize(steps_mean = mean(steps, na.rm = TRUE))
+  
+
+
+# create 1 dataframe for all variables from last to first PVL
+actigraph <- data.frame(datehour = seq( 
+  from = floor_date(redcap$starttime[redcap$uid == uid_chosen], unit = "hour"),
+  to = floor_date(redcap$endtime[redcap$uid == uid_chosen], unit = "hour"),
+  by = "hour"))
+
+actigraph <- actigraph |>
+  left_join(STEPS_hourly, by = "datehour") |>
+  left_join(CR_hourly, by = "datehour") |>
+  left_join(HR_hourly, by = "datehour") |>
+  left_join(HRV_hourly, by = "datehour") |>
+  left_join(IBI_hourly, by = "datehour") |>
+  left_join(WT_hourly, by = "datehour") 
+
+# set weartime validation filter
+actigraph <- actigraph |>
+  mutate(across(
+    c(steps_mean, 
+      bout_length_seconds_mean, 
+      heart_rate_mean, 
+      breathing_rate_mean, 
+      interbeat_interval_mean, 
+      ACC),
+    ~ if_else(validity > 0, NA_real_, .)
+  ))
+```
+
+
+### 4. visualize the cleaned data and the raw data
+
+```{r plots, fig.align='center', fig.width=9, fig.height=15, echo=FALSE}
+par(mfrow = c(6,2))
+
+# CR
+plot(CR$start_timestamp, CR$bout_length_seconds, pch = 19, col = "black", lwd = 0.5, main = "CR: bout length seconds")
+plot(actigraph$datehour, actigraph$bout_length_seconds_mean, col = "red", main = "cleaned and aggregated")
+
+# HR
+plot(HR$timestamp, HR$HeartRate, pch = 19, col = "black", lwd = 0.5, main = "HR: heart rate")
+plot(actigraph$datehour, actigraph$heart_rate_mean, col = "red")
+
+# HRV
+plot(HRV$timestamp, HRV$breathing_rate, pch = 19, col = "black", lwd = 0.5, main = "HRV: breathing rate")
+plot(actigraph$datehour, actigraph$heart_rate_mean, col = "red")
+
+# IBI
+plot(IBI$timestamp, IBI$interbeat_interval, pch = 19, col = "black", lwd = 0.5, main = "IBI: interbeat interval")
+plot(actigraph$datehour, actigraph$interbeat_interval_mean, col = "red")
+
+# Steps
+plot(STEPS$timestamp, STEPS$steps, pch = 19, col = "black", lwd = 0.5, main = "Steps")
+plot(actigraph$datehour, actigraph$steps_mean, col = "red")
+
+# ACC + validity
+plot(WT_hourly$datehour, WT_hourly$ACC, col = "red", main = "ACC")
+plot(WT_hourly$datehour, WT_hourly$validity, col = "red", main = "validity")
+```
+
