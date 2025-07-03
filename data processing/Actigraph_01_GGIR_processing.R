@@ -10,16 +10,18 @@ library(readr); library(GGIR)
 source("functions.R")
 
 # specify the week to compile (needs to match naming convention on synology)
-week_indicator = "week_1"
+week_indicator = "week_2"
 
 # load redcap from CCH
-  # REDCap for uids and start and end times
-  redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv") |> 
-    filter(str_starts(uid, "ACT"))
+# REDCap for uids and start and end times
+redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
+  dplyr::mutate(starttime = ymd_hms(starttime),
+                endtime   = ymd_hms(endtime),
+                redcap_event_name = substr(redcap_event_name, 13,18)) |>
+  filter(redcap_event_name == week_indicator)|>
+  filter(!(uid %in% c("ACT029U", "ACT034X", "ACT045O"))) |>
+  filter(str_starts(uid, "ACT"))
 
-
-# I need to create a folder in which all the participants have individual folders
-# in which I will move the .RAW file and then the output will be created in.
 
 
 # STEP 1
@@ -27,32 +29,39 @@ week_indicator = "week_1"
 # create the subfolders using the uids from redcap
 uids <- unique(redcap$uid)
 
+for (uid in uids) {
+  folderpath <- paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/participants/", week_indicator, "/", uid)
+  
+  if (!dir.exists(folderpath)) {
+    dir.create(folderpath, recursive = TRUE)
+  }
+}
 
-# for (uid in uids) {
-#   folderpath <- paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/participants/week_1/", uid)
-#   
-#   dir.create(folderpath)
-# }
 
 
 # Step 2
 # copy the .RAW files from the csv folder only of week_1 to the corresponding folder
-# files <- list.files("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/csv/", 
-#                     pattern = "ACT.*week1.*RAW.*\\.csv$", 
-#                     full.names = TRUE)
-# 
-# for (uid in uids) {
-#   
-#   # select the file for every uid
-#   selected_file <- files[grepl(uid, basename(files))]
-#   
-#   # define the output location
-#   output_loc <- paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/participants/week_1/",uid, "/", basename(selected_file)) 
-# 
-#   
-#   file.copy(from = selected_file, 
-#             to = output_loc)
-# }
+files <- list.files("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/csv/",
+                    pattern = "ACT.*week2.*RAW.*\\.csv$", # CAREFUL - WEEK INDICATOR!!
+                    full.names = TRUE)
+
+for (uid in uids) {
+  
+  # select the file for the current uid
+  selected_file <- files[grepl(uid, basename(files))]
+  
+  # skip if no matching file is found
+  if (length(selected_file) == 0) next
+  
+  # define output location
+  output_loc <- file.path("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/participants",
+                          week_indicator, uid, basename(selected_file))
+  
+  # only copy if file doesn't already exist
+  if (!file.exists(output_loc)) {
+    file.copy(from = selected_file, to = output_loc)
+  }
+}
 
 
 
@@ -61,13 +70,22 @@ uids <- unique(redcap$uid)
 
 # completed for all
 
-# for (uid in uids) { # commented out for safety
+for (uid in uids) { # commented out for safety
   
   # print(uid)
-  datadir = paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/participants/week_1/", uid, "/") 
+  datadir = paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/participants/", week_indicator, "/", uid, "/") 
   
   # create output folder
   folderpath <- paste0(datadir, "RAW_processed")
+  
+  
+  # Skip if RAW_processed folder exists and is not empty
+  if (dir.exists(folderpath) && length(list.files(folderpath)) > 0) {
+    message(paste("RAW_processed already populated for", uid, "- skipping."))
+    next
+  }
+  
+  
   if (!dir.exists(folderpath)) dir.create(folderpath)
   
   outputdir = paste0(folderpath, "/")
