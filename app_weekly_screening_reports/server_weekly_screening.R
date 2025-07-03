@@ -73,7 +73,7 @@ server <- function(input, output, session) {
                           gsub("_", "", redcap_event)
                           , "/")
 
-      # file_path <- paste0("~/SynologyDrive/Participants/ACT008U/week2/")
+      # file_path <- paste0("~/SynologyDrive/Participants/ACT072R/week2/")
 
     # output the file path to the UI
     output$file_path <- renderText({
@@ -159,6 +159,22 @@ server <- function(input, output, session) {
       })
       return(NULL)  # stop here..
     }
+    
+    
+    # test code begin
+    # Read the Excel file
+    # i = 2
+    # person <- read_excel(files_in_folder_xlsx[i])
+    # 
+    # # find the row number where "Date" and "Time" are located
+    # header_row <- which(person[, 1] == "Date" & person[, 2] == "Time")
+    # 
+    # # read the file again, skipping all rows before the header_row and delete NAs
+    # person <- read_excel(files_in_folder_xlsx[i], skip = header_row) |>
+    #   na.omit() |>
+    #   dplyr::mutate(datetime = ymd_hms(paste(Date, Time)),
+    #                 Value = as.numeric(Value)) 
+    # test code end
     
     
     
