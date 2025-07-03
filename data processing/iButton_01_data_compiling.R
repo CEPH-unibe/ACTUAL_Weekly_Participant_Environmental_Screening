@@ -26,17 +26,20 @@ week_indicator = "week_1"
 
 # load redcap from CCH
 
-  # REDCap for uids and start and end times
-  redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
-    dplyr::mutate(starttime = ymd_hms(starttime),
+# REDCap for uids and start and end times
+redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
+  dplyr::mutate(starttime = ymd_hms(starttime),
                   endtime   = ymd_hms(endtime),
                   redcap_event_name = substr(redcap_event_name, 13,18)) |>
-    filter(redcap_event_name == week_indicator)|>
-    filter(!(uid %in% c("ACT029U", "ACT034X", "ACT045O")))
-  # REDCap for exclusion of pvls
-  redcap_pvl = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv") |>
-    dplyr::mutate(redcap_event_name = substr(redcap_event_name, 13,18))|>
-    filter(redcap_event_name == week_indicator)
+  filter(redcap_event_name == week_indicator)|>
+  filter(!(uid %in% c("ACT029U", "ACT034X", "ACT045O"))) |>
+  filter(str_starts(uid, "ACT"))
+
+# REDCap for exclusion of pvls
+redcap_pvl = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_pvl.csv") |>
+  dplyr::mutate(redcap_event_name = substr(redcap_event_name, 13,18))|>
+  filter(redcap_event_name == week_indicator) |>
+  filter(str_starts(uid, "ACT"))
 
 
 #---- 
@@ -150,14 +153,6 @@ for (uid in unique(redcap$uid)) {
             # assign to the right column based on datetime
             data_full <- rbind(data_full, data) 
           }
-          
-
-          
-          
-          # CLEANING HAPPENS HERE
-
-          
-
         }
       } 
     }
@@ -172,9 +167,9 @@ data_full <- data_full |>
   filter(uid != "ACT")
 
 # save the minute data
-  # write the data to csv 
-  write_csv(data_full, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_minute_data_unclean.csv")
-  write_csv(data_full, "/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Participants/week1_IB_RAW_data_unclean.csv")
+# write the data to csv 
+write_csv(data_full, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/", week_indicator, "_minute_data_unclean.csv"))
+write_csv(data_full, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Participants/", week_indicator, "_IB_RAW_data_unclean.csv"))
 
 
 # create hourly averages
@@ -248,9 +243,9 @@ data_combined <- datetime_series |>
   mutate(datetime = as.POSIXct(datetime, origin = "1970-01-01", tz = "CET") - 3600)
 
 
-  # write the data to csv 
-  write_csv(data_combined, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/week1_hourly_data_unclean.csv")
-  write_csv(data_combined, "/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Participants/week1_IB_hourly_data_unclean.csv")
+# write the data to csv 
+write_csv(data_combined, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/", week_indicator, "_hourly_data_unclean.csv"))
+write_csv(data_combined, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Participants/", week_indicator, "_IB_hourly_data_unclean.csv"))
 
 
 

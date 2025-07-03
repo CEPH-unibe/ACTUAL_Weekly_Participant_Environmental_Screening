@@ -1,4 +1,6 @@
-# in this file I implement the noise preparation routine from the vignettes/noise_preparation.Rmd
+###############################################################################
+# DATA CLEANING SCRIPT BASED ON vignettes/noise_preparation.Rmd
+# in this file I implement the noise preparation routine
 # and save the data in data/participants/week1
 
 
@@ -22,18 +24,15 @@ week_indicator = "week_1"
 
 # load redcap from CCH
 # iButton and Noise data
-data <- read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Participants/week1_IB_RAW_data_unclean.csv")
+data <- read_csv(paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Participants/", week_indicator,  "_IB_RAW_data_unclean.csv"))
 
 # REDCap for uids and start and end times
-redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")
-
-
-# select redcap data 
-redcap <- redcap |> 
+redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv") |> 
   select(uid, redcap_event_name, pvl_start, pvl_end, starts_with("pvl_ib")) |>
   drop_na(pvl_start) |>
-  filter(redcap_event_name == "study_visit_week_1_arm_1") |>
-  filter(!(uid %in% c("ACT029U", "ACT034X", "ACT045O")))
+  filter(str_detect(redcap_event_name, week_indicator)) |>
+  filter(!(uid %in% c("ACT029U", "ACT034X", "ACT045O"))) |>
+  filter(str_starts(uid, "ACT"))
 
 
 # noise data
@@ -57,7 +56,7 @@ noise_data_weekly <- data.frame()
 
 
 
-
+# cleaning routine
 for(uidx in uids){
   
   print(uidx)
@@ -102,20 +101,12 @@ for(uidx in uids){
     }
   
   
-  
-  
-  
   # remove outliers based on five day mean and 3x sd
   mean_noise = mean(data_N_uid$NS, na.rm = TRUE)
   sd_noise = sd(data_N_uid$NS, na.rm = TRUE) * 3
 
   data_N_uid <- data_N_uid |>
     mutate(NS = ifelse(NS > mean_noise + sd_noise | NS < mean_noise - sd_noise, NA, NS))
-  
-  
-  
-  
-  
   
   # calculate hourly, daily, and weekly noise indicators
   
@@ -225,9 +216,9 @@ for(uidx in uids){
   }
 
 
-write_csv(noise_data_hourly, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_NS_indicators_hourly_data_clean.csv")
-write_csv(noise_data_daily, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_NS_indicators_daily_data_clean.csv")
-write_csv(noise_data_weekly, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_NS_indicators_weekly_data_clean.csv")
+write_csv(noise_data_hourly, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/", week_indicator, "/", week_indicator, "_NS_indicators_hourly_data_clean.csv"))
+write_csv(noise_data_daily, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/", week_indicator, "/", week_indicator, "_NS_indicators_daily_data_clean.csv"))
+write_csv(noise_data_weekly, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/", week_indicator, "/", week_indicator, "_NS_indicators_weekly_data_clean.csv"))
 
 
 

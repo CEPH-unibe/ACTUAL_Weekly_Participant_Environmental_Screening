@@ -12,21 +12,23 @@ source("functions.R")
 library(readr);library(tidyr);library(dplyr);library(readxl);library(zoo)
 library(lubridate);library(stringr);library(ggplot2);library(gridExtra); library(grid)
 
+# specify the week to compile (needs to match naming convention on synology)
+week_indicator = "week_1"
+
 
 # LOAD and SPLIT DATA
 #----
-  # iButton and Noise data
-  data <- read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Participants/week1_IB_RAW_data_unclean.csv")
+# iButton and Noise data
+data <- read_csv(paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Participants/", week_indicator, "_IB_RAW_data_unclean.csv"))
   
-  # REDCap for uids and start and end times
-  redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv")
-
-# select redcap data 
-redcap <- redcap |> 
+# REDCap for uids and start and end times
+redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_all.csv") |> 
   select(uid, redcap_event_name, pvl_start, pvl_end, starts_with("pvl_ib")) |>
   drop_na(pvl_start) |>
-  filter(redcap_event_name == "study_visit_week_1_arm_1") |>
-  filter(!(uid %in% c("ACT029U", "ACT034X", "ACT045O")))
+  filter(str_detect(redcap_event_name, week_indicator)) |>
+  filter(!(uid %in% c("ACT029U", "ACT034X", "ACT045O"))) |>
+  filter(str_starts(uid, "ACT"))
+
 
 # house data
 data_H <- data |>
@@ -178,10 +180,10 @@ data_W <- data_W |>
 
 # Save the data on CCH
 # write the data to csv 
-write_csv(data_H, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_IBH_RAW_data_clean.csv")
-write_csv(data_W, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_IBW_RAW_data_clean.csv")
-write_csv(data_T, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_IBT_RAW_data_clean.csv")
-write_csv(data_N, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_NS_RAW_data_clean.csv")
+write_csv(data_H, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/", week_indicator, "/", week_indicator, "_IBH_RAW_data_clean.csv"))
+write_csv(data_W, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/", week_indicator, "/", week_indicator, "_IBW_RAW_data_clean.csv"))
+write_csv(data_T, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/", week_indicator, "/", week_indicator, "_IBT_RAW_data_clean.csv"))
+write_csv(data_N, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/", week_indicator, "/", week_indicator, "_NS_RAW_data_clean.csv"))
 
 
 
@@ -241,19 +243,19 @@ data_T_hourly <- data_T |>
             .groups = "drop") |>
   mutate(uid_time = paste0(uid, datetime_hourly))
 
-data_N_hourly <- data_N |>
-  mutate(datetime_hourly = floor_date(ymd_hms(datetime), "hour")) |>
-  group_by(uid, datetime_hourly) |>
-  summarise(NS = 10 * log10(mean(10^(NS / 10), na.rm = TRUE)),
-            .groups = "drop") |>
-  mutate(uid_time = paste0(uid, datetime_hourly))
+# data_N_hourly <- data_N |>
+#   mutate(datetime_hourly = floor_date(ymd_hms(datetime), "hour")) |>
+#   group_by(uid, datetime_hourly) |>
+#   summarise(NS = 10 * log10(mean(10^(NS / 10), na.rm = TRUE)),
+#             .groups = "drop") |>
+#   mutate(uid_time = paste0(uid, datetime_hourly))
 
 
 data_combined <- datetime_series |>
   full_join(data_H_hourly |> select(uid_time, IBH_HUM, IBH_TEMP), by = "uid_time") |>
   full_join(data_W_hourly |> select(uid_time, IBW_HUM, IBW_TEMP), by = "uid_time") |>
   full_join(data_T_hourly |> select(uid_time, IBT_TEMP), by = "uid_time") |>
-  full_join(data_N_hourly |> select(uid_time, NS), by = "uid_time") |>
+  # full_join(data_N_hourly |> select(uid_time, NS), by = "uid_time") |>
   filter(!is.na(uid)) |>
   mutate(across(everything(), ~ ifelse(is.nan(.), NA, .))) |>
   mutate(datetime = as.POSIXct(datetime, origin = "1970-01-01", tz = "CET") - 3600)
@@ -261,7 +263,7 @@ data_combined <- datetime_series |>
 
 # Save the hourly combined aggregated data on CCH
   # write the data to csv 
-write_csv(data_combined, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_IB_hourly_data_clean.csv")
+write_csv(data_combined, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/", week_indicator, "/", week_indicator, "_IB_hourly_data_clean.csv"))
 
 
 #----
