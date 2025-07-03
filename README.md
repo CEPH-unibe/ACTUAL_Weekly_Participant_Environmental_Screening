@@ -95,5 +95,5 @@ In the `vignettes` folder I demostrate multiple processes on example dataset tha
 
 ### The reports folder
 
-In the `reports` is the output of the `app_weekly_cleaning_reports` app saved to enable future investigation of raw measured data without running the app again.
+In the `reports` folder is the output of the `app_weekly_cleaning_reports` app saved to enable future investigation of raw measured data without running the app again.
 
