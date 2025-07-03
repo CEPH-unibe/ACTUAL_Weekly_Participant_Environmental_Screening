@@ -16,26 +16,53 @@ A description of the processing and aggregation of the output of different devic
 
 ### REDCap
 
-[REDCap](https://project-redcap.org/) logs metadata on the study procedure and measurements. In the getREDCap.R file I access REDCap via API and save the RAW output file as well as two aggregated versions on `CCH/Actual_project/data/App_Personal_Data_Screening/`.
+[REDCap](https://project-redcap.org/) logs metadata on the study procedure and measurements. In the `data processing/getREDCap.R` file I access REDCap via API and save the RAW output file as well as two aggregated versions on `CCH/Actual_project/data/App_Personal_Data_Screening/`.
 
 ### iButton (IB) data
 
-The iButton data, saved on a Synology server, is first compiled rowwise for all variables combined, and additionally aggregated to hourly averages and then joined by columns. Both files (RAW rowwise and hourly averages with joined columns) are saved to `CCH/Actual_project/data-raw/Participants`.
+The iButton data, saved on a Synology server, is first cleaned for each participant individually using the steps described in `vignettes/Data_Cleaning_Protocol_revised.Rmd`. The cleaned data is then compiled rowwise for all measurement devices individually in the RAW resolution, and additionally aggregated to hourly averages and then joined by all measurement devices (all variables in one table). Both files (RAW rowwise and hourly averages with joined columns) are saved to `CCH/Actual_project/data/Participants/week_X`.
 
-Additionally to just compiling in RAW and hourly format, the RAW data is cleaned using the steps described in `vignettes/Data_Cleaning_Protocol_revised.Rmd`. This data is saved in RAW format through rbinding for every variable individually and again aggregated to hourly averages and joined through columns. Both clean file types (hourly aggregated and multiple variable RAW files) are saved in `CCH/Actual_project/data/Participants/week_1/`.
+```
+├── data/Participants/week_1
+   ├── week1_IB_hourly_data_clean.csv
+   ├── week1_IBH_RAW_data_clean.csv
+   ├── week1_IBT_RAW_data_clean.csv
+   ├── week1_IBW_RAW_data_clean.csv
+   ├── ...(other data)
+```
 
 ### Actigraph data
 
-The Actigraph data from Synology is converted/prepared using the Actilife program, which is done outside of this repository and not part of it. 
+The Actigraph data from Synology is converted/prepared using the Actilife program, which is done outside of this repository and not part of the processing pipeline presented here. 
 
-The output from Actilife is then stored on `CCH/ACTUAL_project/raw-data/Actigraph/`. From the `CCH/../Actigraph/csv/` folder, first the RAW files are copied into the `CCH/..Actigraph/participant/week_1/uid/` folders of the respective participant. Using the GGIR package, the weartime validation is computed and saved in the `CCH/../Actigraph/uid/RAW_processed/` folder. This GGIR output is then copied into the `../uid/` folder and aggregated to hourly averages and saved in the same folder. Additionally, the GGIR output is compiled rowwise in both formats and saved into `CCH/Actual_project/data/Participants`. 
+The output from Actilife is then stored on `CCH/ACTUAL_project/raw-data/Actigraph/`. From the `../Actigraph/csv/` folder, first the .RAW files are copied into the `..Actigraph/participant/week_1/uid/` folders of the respective participant. Using the GGIR package (method: `vignettes/GGIR_Workflow.Rmd`), the weartime validation is computed and automatically saved in the `../Actigraph/participant/week_1/uid/RAW_processed/` folder of the same participant. This GGIR output is then copied into the `../Actigraph/participant/week_1/uid/` folder. The GGIR output is compiled rowwise for every dateset (weartime validation/sleep/..) in RAW format over all participants and saved into `CCH/Actual_project/data/Participants/week_X/`. 
 
-Next, the mutiple heart rate variables, steps and temperature files are copied from the `CCH/../Actigraph/` folder to their `CCH/..Actigraph/participants/week_1/uid/` folders before they are then compiled rowwise to individual variable files and saved in the /data/ folder. 
+Next, the mutiple heart rate variables are computed as described in the `data processing/Actigraph_00_HR_calculation.R` file, and together with step counts and temperature files are copied from the `../Actigraph/` folder to their `..Actigraph/participants/week_1/uid/` folders of the corresponding participant. Next, these files are cleaned using the weartime validation output of the GGIR package and the PVLs from REDCap before they are then compiled rowwise over all participant in RAW format to individual variable files and saved in the data folder `CCH/Actual_project/data/Participants/week_X/`. 
+
+```
+├── data/Participants/week_1
+   ├── week1_actigraph_validation_RAW.csv
+   ├── week1_actigraph_CR_RAW_data_cleaned.csv
+   ├── week1_actigraph_HR_RAW_data_cleaned.csv
+   ├── week1_actigraph_HRV_RAW_data_cleaned.csv
+   ├── week1_actigraph_IBI_RAW_data_cleaned.csv
+   ├── week1_actigraph_Steps_RAW_data_cleaned.csv
+   ├── week1_actigraph_Temp_RAW_data_cleaned.csv
+   ├── ...(other data)
+```
 
 ### Noise data
 
-The noise data was compiled from Synology and saved as a RAW file without aggregation in the `CCH/Actual_project/data/Participants/` folder. From this RAW data, hourly, daily, and weekly indicators are calculated and saved as 3 individual files in the same folders. The indicators are described in `/vignettes/Noise_processing.Rmd`.
+The noise data was compiled from Synology and saved as a RAW file with some minor cleaning but without aggregation in the `CCH/Actual_project/data/Participants/week_X` folder. From this RAW data, hourly, daily, and weekly indicators for every participant are calculated and saved as 3 individual files combined for all participants for every week in the same location. The cleaning process and the indicators are described in `vignettes/Noise_processing.Rmd`.
 
+```
+├── data/Participants/week_1
+   ├── week1_NS_RAW_data_clean.csv
+   ├── week1_NS_indicators_hourly_data_clean.csv
+   ├── week1_NS_indicators_daily_data_clean.csv
+   ├── week1_NS_indicators_weekly_data_clean.csv
+   ├── ...(other data)
+```
 
 <br>
 
@@ -58,7 +85,7 @@ This app serves as a control for the measured data to ensure correct measurement
 
 ### The data processing folder
 
-In the `data processing` folder I implement the data processing for the Actigraph data, the IB data and the noise sentry data. The data from REDCap can be updated on the `CCH` server using the `getREDCap.R` file.
+In the `data processing` folder I implement the data processing for the Actigraph data, the IB data and the noise sentry data. The data from REDCap can be updated on the `CCH` server using the `data processing/getREDCap.R` file.
 
 
 ### The vignettes folder
