@@ -12,7 +12,11 @@ This repository includes the data management and processing of the ACTUAL projec
 
 # Processing Pipelines
 
-A description of the processing and aggregation of the output of different devices.
+A description of the processing and aggregation of the output of different devices is below the workflow image.
+
+![Workflow Diagram](vignettes/workflow.png)
+
+
 
 ### REDCap
 
