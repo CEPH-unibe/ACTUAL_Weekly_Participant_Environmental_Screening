@@ -1,19 +1,23 @@
-# In this document I will take all the necessary steps to run a get the hourly validation 
-# data from the .RAW file using GGIR.
+################################################################################
+### GGIR processing
+################################################################################
 
+# the purpose of this file
+
+# in this file I prepare the GGIR run by copying the RAW file into its own folder
+# and then generate accelerometern and sleep output using GGIR.
+
+# empty environment
 rm(list=ls())
+
+# libraries
 library(dplyr); library(ggplot2);library(ggnewscale);library(viridis);library(stringr);library(lubridate)
 library(readr); library(GGIR)
 
-
-# for handling file paths and different operating systems
-source("functions.R")
-
 # specify the week to compile (needs to match naming convention on synology)
-week_indicator = "week_2"
+week_indicator = "week_1"
 
-# load redcap from CCH
-# REDCap for uids and start and end times
+# load redcap from CCH for uids and start and end times
 redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
   dplyr::mutate(starttime = ymd_hms(starttime),
                 endtime   = ymd_hms(endtime),
@@ -24,12 +28,13 @@ redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_S
 
 
 
-# STEP 1
 
+# STEP 1
 # create the subfolders using the uids from redcap
 uids <- unique(redcap$uid)
 
 for (uid in uids) {
+  print(uid)
   folderpath <- paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/participants/", week_indicator, "/", uid)
   
   if (!dir.exists(folderpath)) {
@@ -39,14 +44,16 @@ for (uid in uids) {
 
 
 
+# CAREFUL - WEEK INDICATOR in list.files()!!
+
 # Step 2
 # copy the .RAW files from the csv folder only of week_1 to the corresponding folder
 files <- list.files("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/csv/",
-                    pattern = "ACT.*week2.*RAW.*\\.csv$", # CAREFUL - WEEK INDICATOR!!
+                    pattern = "ACT.*week1.*RAW.*\\.csv$", 
                     full.names = TRUE)
 
 for (uid in uids) {
-  
+  print(uid)
   # select the file for the current uid
   selected_file <- files[grepl(uid, basename(files))]
   
@@ -67,17 +74,15 @@ for (uid in uids) {
 
 # Step 3 
 # Run GGIR for every RAW file in every folder
-
-# completed for all
-
-for (uid in uids) { # commented out for safety
+for (uid in uids) { 
   
-  # print(uid)
+  print(uid)
+  
+  # data directory for GGIR
   datadir = paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/participants/", week_indicator, "/", uid, "/") 
   
-  # create output folder
+  # folder path for output folder
   folderpath <- paste0(datadir, "RAW_processed")
-  
   
   # Skip if RAW_processed folder exists and is not empty
   if (dir.exists(folderpath) && length(list.files(folderpath)) > 0) {
@@ -85,19 +90,20 @@ for (uid in uids) { # commented out for safety
     next
   }
   
-  
+  # create outputfolder if it doesnt exist
   if (!dir.exists(folderpath)) dir.create(folderpath)
   
+  # define output directory for GGIR
   outputdir = paste0(folderpath, "/")
   
   # check if RAW file exists (assuming file name is RAW.csv)
-  rawfile <- list.files(datadir, pattern = "\\.csv$", full.names = TRUE)
-  
+  rawfile <- list.files(datadir, pattern = "\\)RAW.csv$", full.names = TRUE)
   if (length(rawfile) == 0) {
     message(paste("No RAW file found for", uid, "- skipping."))
     next  # skip to next iteration
   }
   
+  # Run GGIR
   tryCatch({
     GGIR(
       mode = c(1, 2, 3, 4, 5),

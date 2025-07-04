@@ -13,22 +13,30 @@ knitr::opts_chunk$set(echo = TRUE)
 The aim of this document is to investigate the actigraph data. I want to compare both the RAW output of all variables (1min resolution) to the cleaned (PVL, weartime validation) and aggregated (hourly) output. Through this I hope to identify if further cleaning is necessary, for example because the device is malfunctioning.
 
 ```{r load redcap, echo = FALSE, message=FALSE, warning=FALSE}
+# libraries
 library(readr);library(tidyverse);library(lubridate)
-redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
-    dplyr::mutate(starttime = ymd_hms(starttime),
-                  endtime   = ymd_hms(endtime),
-                  redcap_event_name = substr(redcap_event_name, 13,18)) |>
-    filter(redcap_event_name == "week_1")|>
-    filter(!(uid %in% c("ACT029U", "ACT034X", "ACT045O")))
 
+# week indicator
+week_indicator = "week_1"
+# load REDCap
+redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
+  mutate(starttime = ymd_hms(starttime),
+         endtime   = ymd_hms(endtime),
+         redcap_event_name = substr(redcap_event_name, 13,18)) |>
+  filter(redcap_event_name == week_indicator)|>
+  filter(!(uid %in% c("ACT029U", "ACT034X", "ACT045O")))|>
+  filter(uid != "ACT")
+
+# unique series of uids
 uids <- unique(redcap$uid)
 ```
 
 ### 1.chose a participant
 
 ```{r step1}
+# chose a participant
 uid_chosen <- uids[4] # options 2; 3; 4
-loc <- paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/participants/week_1/",uid_chosen, "/")
+loc <- paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/participants/", week_indicator, "/",uid_chosen, "/")
 ```
 
 ### 2. load all their variables

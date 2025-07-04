@@ -20,9 +20,6 @@ server <- function(input, output, session) {
     output$comparison_plot <- renderPlot({
         df <- filtered_data()  
         
-        
-        
-        
         plot1 <- ggplot(df, aes(x = datetime.x)) +
             geom_point(aes(y = IBH_TEMP.y), color = "blue") +
             geom_point(aes(y = IBH_TEMP.x), color = "brown2") +
@@ -77,18 +74,6 @@ server <- function(input, output, session) {
                 axis.text.y = element_text(size = 10)
             )
         
-        plot6 <- ggplot(df, aes(x = datetime.x)) +
-            geom_point(aes(y = NS.y), color = "blue") +
-            geom_point(aes(y = NS.x), color = "brown2") +
-            ggtitle("NS") + labs(x="Time", y="dB") +
-            ylim(c(20,80)) + theme(
-                plot.margin = margin(10, 10, 30, 30),
-                axis.title.x = element_text(margin = margin(t = 10)),
-                axis.title.y = element_text(margin = margin(r = 10)),
-                axis.text.x = element_text(size = 10),
-                axis.text.y = element_text(size = 10)
-            )
-        
-        gridExtra::grid.arrange(plot1, plot2, plot3, plot4, plot5, plot6, ncol = 2)
+        gridExtra::grid.arrange(plot1, plot2, plot3, plot4, plot5, ncol = 1)
     })
 }

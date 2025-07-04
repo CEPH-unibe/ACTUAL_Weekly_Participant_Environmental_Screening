@@ -51,8 +51,6 @@ data = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Scr
     filter(uid %in% c("ACT001D", "ACT003C", "ACT004S", "ACT014F", "ACT032V")) |>
     mutate(Variable = str_replace(Variable, "_NS", "NS"))
 
-
-
 # house data
 data_H <- data |>
   filter(Variable == "IBH_HUM" | Variable == "IBH_TEMP")|>
@@ -61,7 +59,6 @@ data_H <- data |>
     IBH_HUM_MA = rollmean(IBH_HUM, k = 8, fill = NA, align = "left"),
     IBH_TEMP_MA = rollmean(IBH_TEMP, k = 8, fill = NA, align = "left"),
   )
-
 
 # worn data
 data_W <- data |>

@@ -15,6 +15,7 @@ server <- function(input, output, session) {
              endtime = format(endtime, "%Y-%m-%d %H:%M:%S")) 
     
     
+    
     # give all uid with starttime within the range for selection for plots
     updateSelectInput(session, "uid_select", 
                       choices = unique(data_filtered$uid),  # only unique uids
@@ -160,23 +161,7 @@ server <- function(input, output, session) {
       return(NULL)  # stop here..
     }
     
-    
-    # test code begin
-    # Read the Excel file
-    # i = 2
-    # person <- read_excel(files_in_folder_xlsx[i])
-    # 
-    # # find the row number where "Date" and "Time" are located
-    # header_row <- which(person[, 1] == "Date" & person[, 2] == "Time")
-    # 
-    # # read the file again, skipping all rows before the header_row and delete NAs
-    # person <- read_excel(files_in_folder_xlsx[i], skip = header_row) |>
-    #   na.omit() |>
-    #   dplyr::mutate(datetime = ymd_hms(paste(Date, Time)),
-    #                 Value = as.numeric(Value)) 
-    # test code end
-    
-    
+  
     
     # load all datasets from .xlsx files and create individual plots
     all_data_xlsx <- lapply(files_in_folder_xlsx, function(filepath) {
@@ -438,61 +423,6 @@ server <- function(input, output, session) {
               
             }
           }
-            
-              # SCK Plots
-              # file_path <- paste0("~/SynologyDrive/Participants/ACT058G/week2/")
-              # select the SCK folder if there is one
-              # grid.newpage()
-              # file_path_SCK <- list.files(file_path, pattern = "SCK", full.names = TRUE)
-              # plot_list_SCK <- list()  
-              # plot_counter_SCK <- 1 
-              # # grid.text(substr(file_path_SCK,nchar(file_path_SCK)-16, nchar(file_path_SCK)), x = 0.5, y = 0.5, gp = gpar(fontsize = 14, fontface = "bold"))
-              # # grid.newpage()
-              # 
-              # # add a plot list for the SCK files it the uid has a corresponding folder
-              # if(length(file_path_SCK) > 0 ){
-              # 
-              #   files_in_folder_SCK <- list.files(file_path_SCK)
-              # 
-              #   # empty data frame for rbinding
-              #   data_SCK_rbind <- data.frame()
-              #   for (fi in files_in_folder_SCK) {
-              # 
-              #     # read individual files
-              #     data_SCK <- read.csv(paste0(file_path_SCK, "/", fi), skip = 2) |>
-              #       slice(-1)
-              # 
-              #     data_SCK_rbind <- rbind(data_SCK_rbind, data_SCK)
-              #   }
-              # 
-              #   # save timeseries
-              #   SCK_timeseries <- data_SCK_rbind |>
-              #     mutate(TIME =  ymd_hms(Time, tz = "UTC")) |>
-              #     select(TIME)
-              # 
-              #   # deselect the columns SDCARD and RSS
-              #   data_SCK_rbind <- data_SCK_rbind |>
-              #     select(-SD.card, -WiFi.RSSI, -Time)
-              # 
-              # # # print the name of the SCK
-              # # grid.newpage()
-              # # grid.text(substr(file_path_SCK,nchar(file_path_SCK)-16, nchar(file_path_SCK)), x = 0.5, y = 0.5, gp = gpar(fontsize = 14, fontface = "bold"))
-              # 
-              # # par(mfrow = c(3,3))
-              # 
-              # for (ncol_SCK in 1:ncol(data_SCK_rbind)) {
-              #   # grid.newpage()
-              # 
-              #   # print(ncol_SCK)
-              #   data_SCK_rbind_select <- data_SCK_rbind[,ncol_SCK]
-              #   plot_SCK <-  plot(SCK_timeseries$TIME, data_SCK_rbind_select, main = colnames(data_SCK_rbind)[ncol_SCK])
-              #   
-              #   plot_list_SCK[[plot_counter_SCK]] <- plot_SCK
-              #   plot_counter_SCK <- plot_counter_SCK + 1
-              # }
-              # }
-              # 
-              # grid.newpage()
           
           
           # file_path <- paste0("~/SynologyDrive/Participants/ACT058G/week2/")
@@ -598,6 +528,7 @@ server <- function(input, output, session) {
           }
         }
         
+        # plot ibuttons and noise in pdf
         for (n in 1:length(plot_list)) { # n
           
           if(n == 1 | (n-1) %% 6 == 0){
@@ -606,17 +537,15 @@ server <- function(input, output, session) {
           }
           
           print(plot_list[[n]])
-        } # n
-        
-        # grid.newpage()
+        } 
         
         
-        
+        # plot SCK in pdf
         if (length(plot_list_SCK) > 0) {
           grid.newpage()
           grid.text(header_output, x = 0.5, y = 0.5, gp = gpar(fontsize = 14, fontface = "bold"))
           for (n in 1:9) {
-            # grid.newpage()
+            #
             print(plot_list_SCK[[n]])
           }
         }

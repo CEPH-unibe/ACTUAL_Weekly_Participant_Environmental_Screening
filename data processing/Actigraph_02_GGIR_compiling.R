@@ -1,23 +1,31 @@
-### In this document, I load all the chosen output from every participant, aggregate it, 
-# and then save it under /data before merging it with the other actigraph data
+################################################################################
+### GGIR compiling
+################################################################################
 
+# the purpose of this file
 
+# In this document, I load all the chosen output from every participant (acceleration 
+# and sleep, and save it in the top folder of every participant
+
+# ! I HAVE NOT DONE SLEEP YET !
+
+# empty environment
 rm(list = ls())
+
+# libraries
 library(dplyr); library(ggplot2);library(ggnewscale);library(viridis);library(lubridate);library(readr)
 
-
-# specify the week to compile (needs to match naming convention on synology)
+# week indicator
 week_indicator = "week_1"
 
-# load redcap from CCH
-# REDCap for uids and start and end times
+# load redcap from CCH for uids and start and end times
 redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
-  dplyr::mutate(starttime = ymd_hms(starttime),
-                endtime   = ymd_hms(endtime),
-                redcap_event_name = substr(redcap_event_name, 13,18)) |>
+  mutate(starttime = ymd_hms(starttime),
+         endtime   = ymd_hms(endtime),
+         redcap_event_name = substr(redcap_event_name, 13,18)) |>
   filter(redcap_event_name == week_indicator)|>
   filter(!(uid %in% c("ACT029U", "ACT034X", "ACT045O"))) |>
-  filter(str_starts(uid, "ACT")
+  filter(str_starts(uid, "ACT"))
 
 
 # vector of all uids
@@ -26,24 +34,21 @@ uids <- unique(redcap$uid)
 
 # empty data frames
 df_validation = data.frame()
-# df_validation_hourly = data.frame()
-
-
 
 
 # loop through all participants
 for(uid in uids){
   
-  
-  # load the validation mdat from the participant
+  # load the validation mdat file from the participant
   location = paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/participants/", week_indicator, "/",uid, "/Raw_processed/output_",uid,"/meta/ms5.outraw/40_100_400/") 
   
   validationCSV = list.files(location, pattern = "\\.csv$")
   if (length(validationCSV) == 0) {
-    message(paste("No RAW file found for", uid, "- skipping."))
+    message(paste("No mdat-validation file found for", uid, "- skipping."))
     next  # skip to next iteration
   }
   
+  # load and configure weartime validation dataset
   mdat = read_csv(paste0(location, validationCSV))
   mdat$datetime <- as.POSIXct(mdat$timenum, origin = "1970-01-01", tz = "UTC")
   
@@ -51,12 +56,10 @@ for(uid in uids){
   # exclude data before/after the pvl's
   start_time <- redcap$starttime[redcap$uid == uid]
   end_time <- redcap$endtime[redcap$uid == uid]
-  
   mdat <- mdat |>
     filter(datetime >= start_time & datetime <= end_time)
   
-  
-  
+
   # clean mdat
   mdat <-  mdat |>
     
@@ -65,8 +68,6 @@ for(uid in uids){
     
     # assign correct class
     mutate(across(c(SleepPeriodTime,sibdetection, invalidepoch, guider, window, class_id), as.factor))
-  
-  
   
   
   # reassign classes and create timestamp to group by
@@ -81,46 +82,15 @@ for(uid in uids){
       timestamp_hour = floor_date(datetime, unit = "hour")
     )
   
-  
-  
-  # hourly aggregation
-  mdat_hour <- mdat |>
-    group_by(timestamp_hour) |>
-    summarize(
-      validity = mean(as.numeric(invalidepoch), na.rm = TRUE) - 1,
-      validity_q = quantile(as.numeric(invalidepoch), .75) - 1,
-      across(c(sleep_IN, sleep_WA, day_IN, day_LI, day_MO, ACC), mean, na.rm = TRUE),
-      .groups = "drop"
-    ) |>
-    mutate(
-      max_var = c("sleep_IN", "sleep_WA", "day_IN", "day_LI", "day_MO")[
-        max.col(as.data.frame(across(c(sleep_IN, sleep_WA, day_IN, day_LI, day_MO))), ties.method = "first")],
-      uid = uid)
 
-  
-  
   # save the raw and hourly aggregated data for every participant
   write_csv(mdat, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/participants/", week_indicator, "/",uid, "/", uid, "_week1_actigraph_validation_RAW.csv"))
-  # write_csv(mdat_hour, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/participants/week_1/",uid, "/", uid, "_week1_actigraph_validation_hourly.csv"))
-  
+
+  # rbind to all participants data set
   df_validation = rbind(df_validation, mdat)
-  # df_validation_hourly = rbind(df_validation_hourly, mdat_hour)
-  
-  
-  
 }
 
-# save the raw and hourly aggregated data
+# save the raw rbinded data
 write_csv(df_validation, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/", week_indicator, "/", week_indicator,  "_actigraph_validation_RAW.csv")
-# write_csv(df_validation_hourly, "/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_actigraph_validation_hourly.csv")
-
-
-
-
-
-
-
-
-
 
 

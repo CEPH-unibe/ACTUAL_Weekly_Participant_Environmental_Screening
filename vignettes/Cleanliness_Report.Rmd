@@ -15,15 +15,18 @@ knitr::opts_chunk$set(echo = TRUE)
 Here we investigate both the **completeness of the data collection** as well as the **impact of the data cleaning** on data availability. For both we compare hourly averages of house temperature+humidity, worn temperature+humidity, taped temperature, and noise. 
 
 ```{r load data, echo = FALSE, message=FALSE, warning=FALSE}
+# clean environment
 rm(list=ls())
 
 # libraries
 library(readr);library(tidyr);library(dplyr);library(readxl);library(zoo);library(naniar);library(reshape2)
 library(lubridate);library(stringr);library(ggplot2);library(gridExtra); library(grid); library(visdat)
 
+# week indicator
+week_indicator = "week_1"
 # data
-data_clean = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_hourly_data_clean.csv")
-data_unclean = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Participants/week1_hourly_data_unclean.csv") 
+data_clean = read_csv(paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/", week_indicator, "/", week_indicator,  "_hourly_data_clean.csv"))
+data_unclean = read_csv(paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Participants", week_indicator, "_hourly_data_unclean.csv"))
 ```
 
 First lets look at all the missing data divided into the 6 variables of interest in the uncleaned and cleaned data sets
@@ -98,7 +101,6 @@ plot2 <- gg_miss_fct(data_clean |> select(everything(), -datetime, -uid_time), f
 
 # Plot 3
 # Missing rows per uid
-
 plot3 <- data_clean %>%
   select(everything(), -datetime, -uid_time) %>%
   group_by(uid) %>%
@@ -132,6 +134,7 @@ na_rows_ratio
 The diurnal cycle of the missing data could serve as a indicator what "advice" we could give participants to ensure better data for future weeks of observations.
 
 ```{r diurnal cycle, echo= FALSE, fig.width=8, fig.align="center", fig.height=4}
+# diurnal cycle data
 dc_missing <- data_clean |>
   mutate(hour = hour(datetime)) |>
   select(-uid, -uid_time, -datetime) |>
@@ -140,6 +143,7 @@ dc_missing <- data_clean |>
     na_perc = sum(is.na(across(everything()))) / (n() * ncol(across(everything())))
   )
 
+# diurnal cycle plot missing data
 ggplot(dc_missing, aes(x = hour, y = na_perc)) +
   geom_point(color = "red", size = 2) +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
@@ -153,6 +157,7 @@ ggplot(dc_missing, aes(x = hour, y = na_perc)) +
 ### Timeseries of missing data
 
 ```{r timeserie, echo= FALSE, fig.width=8, fig.align="center", fig.height=4}
+# time series missing data
 ts_missing <- data_clean |>
   select(-uid, -uid_time) |>
   group_by(datetime) |>
@@ -160,6 +165,7 @@ ts_missing <- data_clean |>
     na_perc = sum(is.na(across(everything()))) / (n() * ncol(across(everything())))
   )
 
+# plot time series missing data
 ggplot(ts_missing, aes(x = datetime, y = na_perc)) +
   geom_point(color = "red", size = 2) +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +

@@ -1,3 +1,13 @@
+################################################################################
+### HR VARIABLES CACULAITON
+################################################################################
+
+# the purpose of this file
+
+# process all the RAW.csv files from the csv folder to all 4 heart rate variables
+# and save them in the HR folder
+
+# empty environment
 rm(list = ls())
 
 # ---- USER OPTIONS ----

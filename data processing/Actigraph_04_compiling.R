@@ -1,32 +1,39 @@
-### in this document I load all the actigraph files from the participants individual
-# folders, rbind them and save them in the data folder (without aggregating)
+################################################################################
+### Actigraph compiling
+################################################################################
 
+# the purpose of this file
 
+# in this document I load all the actigraph files from the participants individual
+# folders,  clean them by the PVL and the weartime validation output from the 
+# GGIR routine, rbind them and save them in the data folder without aggregating)
+
+# ! I HAVE YET TO IMPLEMENT THE PVL AND WEARTIME CLEANING OF EACH FILE TYPE
+# AND I ALSO HAVE TO INCLUDE THE SLEEP DATA HERE !
+
+# empty environment
 rm(list = ls())
-library(dplyr); library(ggplot2);library(ggnewscale);library(viridis);library(lubridate);library(readr)
 
+# libraries
+library(dplyr); library(ggplot2);library(ggnewscale);library(viridis);library(lubridate);library(readr)
 
 # specify the week to compile (needs to match naming convention on synology)
 week_indicator = "week_1"
 
-# load redcap from CCH
-# REDCap for uids and start and end times
+# load redcap from CCH for uids and start and end times
 redcap = read_csv("/Volumes/FS/_ISPM/CCH/Actual_Project/data/App_Personal_Data_Screening/redcap_data.csv") |>
   dplyr::mutate(starttime = ymd_hms(starttime),
                 endtime   = ymd_hms(endtime),
                 redcap_event_name = substr(redcap_event_name, 13,18)) |>
   filter(redcap_event_name == week_indicator)|>
-  filter(!(uid %in% c("ACT029U", "ACT034X", "ACT045O")))
-
-
+  filter(!(uid %in% c("ACT029U", "ACT034X", "ACT045O")))|>
+  filter(str_starts(uid, "ACT"))
 
 # vector of all uids
 uids <- unique(redcap$uid)
 
-
 # file path to participants
 filepath_part <- paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data-raw/Actigraph/participants/", week_indicator,"/")
-
 
 # empty dataframe for rbind in loop
 df_CR <- data.frame()
@@ -36,9 +43,7 @@ df_IBI <- data.frame()
 df_STEPS <- data.frame()
 df_Temp <- data.frame()
 
-
-
-
+# loop over all participants
 for(uidx in uids){
   
   print(uidx)
@@ -81,33 +86,18 @@ for(uidx in uids){
   }
 }
 
-df_CR <- data.frame()
-df_HR <- data.frame()
-df_HRV <- data.frame()
-df_IBI <- data.frame()
-df_STEPS <- data.frame()
-df_Temp <- data.frame()
+# df_CR <- data.frame()
+# df_HR <- data.frame()
+# df_HRV <- data.frame()
+# df_IBI <- data.frame()
+# df_STEPS <- data.frame()
+# df_Temp <- data.frame()
 
-write_csv(df_CR, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_actigraph_CR_RAW.csv"))
-write_csv(df_HR, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_actigraph_HR_RAW.csv"))
-write_csv(df_HRV, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_actigraph_HRV_RAW.csv"))
-write_csv(df_IBI, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_actigraph_IBI_RAW.csv"))
-write_csv(df_STEPS, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_actigraph_Steps_RAW.csv"))
-write_csv(df_Temp, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/week_1/week1_actigraph_Temp_RAW.csv"))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# save the cleaned but RAW resolution data
+write_csv(df_CR, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/", week_indicator, "/", week_indicator, "_actigraph_CR_RAW.csv"))
+write_csv(df_HR, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/", week_indicator, "/", week_indicator, "_actigraph_HR_RAW.csv"))
+write_csv(df_HRV, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/", week_indicator, "/", week_indicator, "_actigraph_HRV_RAW.csv"))
+write_csv(df_IBI, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/", week_indicator, "/", week_indicator, "_actigraph_IBI_RAW.csv"))
+write_csv(df_STEPS, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/", week_indicator, "/", week_indicator, "_actigraph_Steps_RAW.csv"))
+write_csv(df_Temp, paste0("/Volumes/FS/_ISPM/CCH/Actual_Project/data/Participants/", week_indicator, "/", week_indicator, "_actigraph_Temp_RAW.csv"))
 
